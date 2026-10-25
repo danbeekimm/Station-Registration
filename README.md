@@ -464,13 +464,16 @@ Docker가 없는 환경에서는 Testcontainers 기반 테스트가 **자동으�
 ```
 dustwatch/
 ├ common/            프로토콜 메시지(record, sealed), NdjsonCodec, DustRecordParser
-├ station-simulator/ 순수 Java. 파일 로드 → 고정 주기 송신 → ACK → 재접속
+├ station-simulator/ 순수 Java. 진입점(StationSimulator, ExitCode) / cli(인자·주소·콘솔 출력) / transport(송신 루프·접속·고정 주기·백오프)
 ├ central-server/    Spring Boot
 │  └ com.exem.dust
 │     ├ domain/      Station(판정 상태), AlertRule, Measurement, MaintenanceWindow, TokenHasher — Spring 의존 없음
-│     ├ service/     IngestService(수신 1건 = 트랜잭션 1개), StationAuthService, MessageValidator, StationStateLoader, StationSeeder
+│     ├ service/
+│     │  ├ ingest/   IngestService(수신 1건 = 트랜잭션 1개), MessageValidator, StationStateLoader
+│     │  └ auth/     StationAuthService, StationSeeder, RejectRecorder
 │     ├ dao/         DAO 인터페이스 5개 + jdbc/ 구현(JdbcClient), SchemaInitializer
-│     ├ tcp/         TcpServer, ConnectionHandler(세션 상태 기계), BoundedLineReader, SessionRegistry
+│     ├ tcp/         TcpServer, ConnectionHandler(세션 상태 기계), SessionRegistry
+│     │  └ framing/  BoundedLineReader(4KB 상한 줄 읽기), MessageWriter
 │     ├ notify/slack/ SlackDispatcher(outbox), SlackWebhookClient, SlackMessageFormatter
 │     ├ web/         DashboardController(GET /), EventStreamController(GET /stream), SseBroadcaster, 화면 DTO
 │     ├ metrics/     DustMetrics(이벤트 → Micrometer)

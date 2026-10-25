@@ -198,4 +198,5 @@ dustwatch/
   - 조건식 `${cond} ? a : (b)`의 else 분기는 `${}` 밖이면 리터럴로 처리된다. 전체를 `${cond ? a : b}`로 감싸야 한다.
   - Gradle 사용자 정의 JavaExec 태스크는 `--args`를 받지 않는다. registerStation은 `@Option` 태스크 클래스로 `--code --name --token`을 받는다.
   - 내부(nested) record 30개를 별도 파일로 분리했다. 위치는 원래 패키지의 `dto/` 하위, SSE 본문은 `web/payload/`. sealed 인터페이스는 구현 record와 같은 패키지여야 하므로 `DecodeResult`·`SendOutcome`·`LineRead`·`IngestResult`·`AuthResult`·`MaintenanceChange`도 `dto/`로 함께 옮기고 `permits`를 명시했다.
+  - 클래스가 몰린 패키지를 하위로 나눴다. simulator → `cli`(인자·주소·콘솔)·`transport`(송신 루프·접속·주기·백오프), service → `ingest`(수신·검증·상태 복원)·`auth`(인증·시드·거부 기록), tcp → `framing`(줄 단위 입출력). 기획안 패키지 표에는 없던 분리다.
   - 은평구 가상 데이터 생성기는 central-server `tools` 패키지의 `makeMockStation` 태스크다. 고정 시드 MT19937(참조 구현의 init_by_array·res53)을 써서 어떤 환경에서도 `data/은평구.json`이 바이트 단위로 같게 재생성되고, 이를 테스트로 고정했다.
