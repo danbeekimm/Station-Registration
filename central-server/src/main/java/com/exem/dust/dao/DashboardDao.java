@@ -14,7 +14,8 @@ public interface DashboardDao {
     /** 등록된 모든 측정소. 아직 접속하지 않은 측정소도 빈 카드로 나온다. */
     List<StationCard> stationCards(int chartPoints);
 
-    List<ChartPoint> recentPoints(String stationId, int limit);
+    /** 측정소별 최신 N개 측정값(시각순). 한 쿼리로 모든 측정소를 읽는다. */
+    Map<String, List<ChartPoint>> recentPointsByStation(int limit);
 
     List<AlertRow> recentAlerts(int limit);
 

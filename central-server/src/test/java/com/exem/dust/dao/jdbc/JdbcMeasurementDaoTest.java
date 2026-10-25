@@ -44,4 +44,19 @@ class JdbcMeasurementDaoTest extends IntegrationTestSupport {
         assertThat(measurementDao.maxSeq("111121")).isZero();
         assertThat(measurementDao.findAllOrderedByTime("111311")).containsExactly(first, withNulls);
     }
+
+    @Test
+    void latestCalmHourSkipsMissingAndHighValuesAndFromInclusiveReadsTheTail() {
+        var t0 = LocalDateTime.of(2023, 3, 23, 0, 0);
+        measurementDao.insertIfAbsent(new Measurement("111311", 1, t0, 20.0, 10.0, null));                 // 평온
+        measurementDao.insertIfAbsent(new Measurement("111311", 2, t0.plusHours(1), null, 10.0, null));    // 결측
+        measurementDao.insertIfAbsent(new Measurement("111311", 3, t0.plusHours(2), 200.0, 10.0, null));   // PM10 기준 이상
+        measurementDao.insertIfAbsent(new Measurement("111311", 4, t0.plusHours(3), 30.0, 10.0, null));    // 평온 ← 기준점
+        measurementDao.insertIfAbsent(new Measurement("111311", 5, t0.plusHours(4), 160.0, 80.0, null));   // 둘 다 기준 이상
+
+        assertThat(measurementDao.latestCalmHour("111311", 150.0, 75.0, 0.12)).contains(t0.plusHours(3));
+        assertThat(measurementDao.findFromInclusive("111311", t0.plusHours(3)))
+                .extracting(Measurement::seq).containsExactly(4, 5);
+        assertThat(measurementDao.latestCalmHour("111121", 150.0, 75.0, 0.12)).isEmpty();
+    }
 }

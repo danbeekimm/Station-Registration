@@ -1,7 +1,8 @@
 -- dustwatch 테이블 스키마. dust DB에 dust 롤로 실행한다.
 --   psql -U dust -h localhost -d dust -f db/schema.sql
--- 중앙 서버도 기동할 때마다 이 파일을 그대로 실행한다. 모든 문장이 IF NOT EXISTS라
--- 두 번째 기동부터는 아무것도 바꾸지 않으며, DROP 문은 없다.
+-- 중앙 서버도 기동할 때마다 이 파일을 그대로 실행한다. 생성 문장은 모두 IF NOT EXISTS라
+-- 두 번째 기동부터는 아무것도 바꾸지 않는다. 테이블·데이터를 지우는 문장은 없고, 초기 버전의 중복 인덱스를
+-- 교체하는 DROP INDEX IF EXISTS만 있다.
 -- 시각 컬럼 규칙: 측정 시각(논리 시간)은 시간대 없는 TIMESTAMP, 서버가 찍는 시각은 TIMESTAMPTZ.
 
 -- 측정소 마스터와 인증 정보. 측정소 목록의 유일한 출처다.
@@ -23,11 +24,13 @@ CREATE TABLE IF NOT EXISTS measurement (
     pm25         NUMERIC(7,1),
     o3           NUMERIC(6,3),                            -- 제공 데이터에 없어 항상 NULL. 오존 룰 입력 자리
     received_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    UNIQUE (station_id, measured_at)                      -- 재전송·재접속 중복 수신을 멱등 처리
+    UNIQUE (station_id, measured_at)                      -- 재전송·재접속 중복 수신을 멱등 처리. 시각순 조회·최신 N건도 이 인덱스가 담당
 );
 
-CREATE INDEX IF NOT EXISTS idx_measurement_station_time
-    ON measurement (station_id, measured_at DESC);
+-- 재접속 시 재개 지점(MAX(seq))을 단건으로 꺼내기 위한 인덱스
+CREATE INDEX IF NOT EXISTS idx_measurement_station_seq
+    ON measurement (station_id, seq DESC);
+DROP INDEX IF EXISTS idx_measurement_station_time;       -- 초기 버전의 중복 인덱스 정리(UNIQUE 인덱스와 같은 열)
 
 -- 장비별 점검 구간. 연속 NULL 구간 하나가 1행이다.
 CREATE TABLE IF NOT EXISTS maintenance_log (
@@ -41,7 +44,9 @@ CREATE TABLE IF NOT EXISTS maintenance_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_maintenance_station_open
-    ON maintenance_log (station_id, ended_at);
+    ON maintenance_log (station_id, ended_at);           -- 측정소별 진행 중 점검(대시보드 카드)
+CREATE INDEX IF NOT EXISTS idx_maintenance_started
+    ON maintenance_log (started_at DESC);                -- 최근 점검 피드
 
 -- 시간별 경보 발령 기록. 한 측정소의 한 시각에는 최고 등급 1건만 남는다.
 CREATE TABLE IF NOT EXISTS alert_log (
@@ -64,11 +69,13 @@ CREATE TABLE IF NOT EXISTS alert_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_alert_issued
-    ON alert_log (issued_at DESC);
+    ON alert_log (issued_at DESC);                       -- 최근 경보 피드
 CREATE INDEX IF NOT EXISTS idx_alert_station_issued
-    ON alert_log (station_id, issued_at DESC);
-CREATE INDEX IF NOT EXISTS idx_alert_slack_queue
-    ON alert_log (slack_status, slack_next_at);
+    ON alert_log (station_id, issued_at DESC);           -- 측정소별 마지막 경보·건수
+-- Slack outbox: PENDING 행만 담는 부분 인덱스. 디스패처가 issued_at 순 첫 행을 정렬 없이 꺼내고, 전송이 끝난 행은 인덱스에서 빠진다
+CREATE INDEX IF NOT EXISTS idx_alert_slack_pending
+    ON alert_log (issued_at, id) WHERE slack_status = 'PENDING';
+DROP INDEX IF EXISTS idx_alert_slack_queue;              -- 초기 버전의 (slack_status, slack_next_at) 인덱스 정리
 
 -- 인증·검증 거부 기록. 검증이 실제로 동작했다는 근거로 남긴다.
 CREATE TABLE IF NOT EXISTS connection_reject_log (
@@ -81,4 +88,6 @@ CREATE TABLE IF NOT EXISTS connection_reject_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_reject_time
-    ON connection_reject_log (rejected_at DESC);
+    ON connection_reject_log (rejected_at DESC);         -- 최근 거부 목록
+CREATE INDEX IF NOT EXISTS idx_reject_reason
+    ON connection_reject_log (reason_code);              -- 사유별 누적 집계(대시보드)

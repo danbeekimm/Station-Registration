@@ -12,9 +12,12 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public class JdbcMeasurementDao implements MeasurementDao {
+
+    private static final String SELECT_COLUMNS = "SELECT station_id, seq, measured_at, pm10, pm25, o3 FROM measurement";
 
     private static final RowMapper<Measurement> ROW_MAPPER = (resultSet, rowNumber) -> new Measurement(
             resultSet.getString("station_id"),
@@ -48,7 +51,7 @@ public class JdbcMeasurementDao implements MeasurementDao {
         return inserted == 1;
     }
 
-    /** 저장된 마지막 seq. 없으면 0이라 재개 지점은 항상 +1로 계산할 수 있다. */
+    /** 저장된 마지막 seq. (station_id, seq DESC) 인덱스로 단건 조회된다. 없으면 0이라 재개 지점은 항상 +1로 계산할 수 있다. */
     @Override
     public int maxSeq(String stationId) {
         return jdbc.sql("SELECT COALESCE(MAX(seq), 0) FROM measurement WHERE station_id = :stationId")
@@ -63,17 +66,42 @@ public class JdbcMeasurementDao implements MeasurementDao {
         return value == null ? null : value.doubleValue();
     }
 
-    /** 상태 복원(전체 재생)의 입력. 시각 오름차순이어야 지속 판정이 맞는다. */
+    /** 전체 이력. 평온 시각이 없는 측정소(처음부터 계속 고농도·결측)의 상태 복원에만 쓴다. */
     @Override
     public List<Measurement> findAllOrderedByTime(String stationId) {
-        return jdbc.sql("""
-                SELECT station_id, seq, measured_at, pm10, pm25, o3
-                FROM measurement
-                WHERE station_id = :stationId
-                ORDER BY measured_at
-                """)
+        return jdbc.sql(SELECT_COLUMNS + " WHERE station_id = :stationId ORDER BY measured_at")
                 .param("stationId", stationId)
                 .query(ROW_MAPPER)
                 .list();
+    }
+
+    /** 평온 시각 이후만 읽는 상태 복원 입력. UNIQUE(station_id, measured_at) 인덱스의 범위 스캔이다. */
+    @Override
+    public List<Measurement> findFromInclusive(String stationId, LocalDateTime from) {
+        return jdbc.sql(SELECT_COLUMNS + " WHERE station_id = :stationId AND measured_at >= :from ORDER BY measured_at")
+                .param("stationId", stationId)
+                .param("from", from)
+                .query(ROW_MAPPER)
+                .list();
+    }
+
+    /** 최신 시각부터 거꾸로 인덱스를 훑다가 조건에 맞는 첫 행에서 멈춘다. 대부분의 시각이 평온하므로 보통 몇 행 안에 끝난다. */
+    @Override
+    public Optional<LocalDateTime> latestCalmHour(String stationId, double pm10Below, double pm25Below, double o3Below) {
+        return jdbc.sql("""
+                SELECT measured_at FROM measurement
+                WHERE station_id = :stationId
+                  AND pm10 IS NOT NULL AND pm25 IS NOT NULL
+                  AND pm10 < :pm10Below AND pm25 < :pm25Below
+                  AND (o3 IS NULL OR o3 < :o3Below)
+                ORDER BY measured_at DESC
+                LIMIT 1
+                """)
+                .param("stationId", stationId)
+                .param("pm10Below", pm10Below)
+                .param("pm25Below", pm25Below)
+                .param("o3Below", o3Below)
+                .query(LocalDateTime.class)
+                .optional();
     }
 }
