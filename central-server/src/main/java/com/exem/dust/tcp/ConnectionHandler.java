@@ -12,13 +12,16 @@ import com.exem.dust.common.protocol.RejectReason;
 import com.exem.dust.common.protocol.Welcome;
 import com.exem.dust.config.DustProperties;
 import com.exem.dust.domain.station.RegisteredStation;
+import com.exem.dust.domain.station.Station;
 import com.exem.dust.service.AuthResult;
 import com.exem.dust.service.IngestResult;
 import com.exem.dust.service.IngestService;
 import com.exem.dust.service.MessageValidator;
 import com.exem.dust.service.StationAuthService;
+import com.exem.dust.service.StationStateLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -41,20 +44,25 @@ final class ConnectionHandler implements Runnable {
     private final DustProperties.Tcp tcp;
     private final NdjsonCodec codec;
     private final StationAuthService authService;
+    private final StationStateLoader stateLoader;
     private final MessageValidator validator;
     private final IngestService ingestService;
     private final SessionRegistry sessions;
 
     private RegisteredStation station;
+    /** 인증 후 DB에서 복원한 판정 상태. 이 접속의 스레드만 갱신한다. */
+    private Station state;
     private int lastSeenSeq;
 
     ConnectionHandler(Socket socket, DustProperties.Tcp tcp, NdjsonCodec codec, StationAuthService authService,
-                      MessageValidator validator, IngestService ingestService, SessionRegistry sessions) {
+                      StationStateLoader stateLoader, MessageValidator validator, IngestService ingestService,
+                      SessionRegistry sessions) {
         this.socket = socket;
         this.remoteAddress = socket.getRemoteSocketAddress().toString();
         this.tcp = tcp;
         this.codec = codec;
         this.authService = authService;
+        this.stateLoader = stateLoader;
         this.validator = validator;
         this.ingestService = ingestService;
         this.sessions = sessions;
@@ -132,6 +140,7 @@ final class ConnectionHandler implements Runnable {
                     log.info("[{}] 기존 접속을 새 접속으로 교체", describe());
                     replaced.closeQuietly();
                 }
+                state = stateLoader.load(station.id());
                 int resumeFromSeq = ingestService.nextExpectedSeq(station.id());
                 lastSeenSeq = resumeFromSeq - 1;
                 socket.setSoTimeout((int) tcp.readTimeout().toMillis());
@@ -195,7 +204,14 @@ final class ConnectionHandler implements Runnable {
             return true;
         }
 
-        var result = ingestService.ingest(station, data);
+        IngestResult result;
+        try {
+            result = ingestService.ingest(state, data);
+        } catch (DataAccessException e) {
+            // 메모리 상태는 바뀌었을 수 있는데 DB는 아니다. 접속을 끊어 재접속 시 DB에서 상태를 다시 복원하게 한다
+            log.error("[{}] seq={} 저장 실패, 접속 종료: {}", describe(), data.seq(), e.getMostSpecificCause().getMessage());
+            return false;
+        }
         lastSeenSeq = Math.max(lastSeenSeq, data.seq());
         writer.send(new Ack(data.seq()));
         if (result instanceof IngestResult.Duplicate) {
