@@ -28,7 +28,8 @@
         .badge.g1 { background: var(--g1); } .badge.g2 { background: var(--g2); } .badge.g3 { background: var(--g3); }
         .badge.g4 { background: var(--g4); } .badge.g5 { background: var(--g5); }
         .tag { display: inline-block; padding: 1px 6px; border: 1px solid #f5a623; color: #a36400; border-radius: 4px; font-size: 12px; margin-left: 4px; }
-        canvas { width: 100%; height: 180px; }
+        /* Chart.js responsive 모드는 canvas가 아닌 부모 크기를 따른다. canvas에 직접 높이를 주면 카드와 서로 키워 무한히 커지므로 래퍼에 고정 높이를 둔다. */
+        .chart { position: relative; height: 280px; }
         section.feed { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
         section.feed h3 { margin: 0 0 8px; font-size: 15px; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -63,7 +64,7 @@
                 <span>측정 시각 <b data-field="at" th:text="${s.latestAt == null} ? '–' : ${#temporals.format(s.latestAt, 'MM-dd HH:mm')}">–</b></span>
                 <span>경보 <b data-field="count" th:text="${s.alertCount}">0</b>건</span>
             </div>
-            <canvas th:attr="data-chart=${s.id}"></canvas>
+            <div class="chart"><canvas th:attr="data-chart=${s.id}"></canvas></div>
         </article>
     </div>
 
@@ -175,7 +176,7 @@
         card.className = 'card'; card.id = stationId; card.dataset.station = stationId;
         card.innerHTML = `<h2><span>${stationId}</span> <small>${stationId}</small> <span class="badge none">경보 없음</span></h2>
             <div class="values"><span>PM10 <b data-field="pm10">–</b> ㎍/㎥</span><span>PM2.5 <b data-field="pm25">–</b> ㎍/㎥</span>
-            <span>측정 시각 <b data-field="at">–</b></span><span>경보 <b data-field="count">0</b>건</span></div><canvas data-chart="${stationId}"></canvas>`;
+            <span>측정 시각 <b data-field="at">–</b></span><span>경보 <b data-field="count">0</b>건</span></div><div class="chart"><canvas data-chart="${stationId}"></canvas></div>`;
         document.getElementById('cards').appendChild(card);
         charts.set(stationId, buildChart(card.querySelector('canvas'), []));
         return card;
