@@ -21,6 +21,7 @@ if [ -f .env ]; then
     line="${line%%#*}"; line="${line%"${line##*[![:space:]]}"}"
     [[ -z "$line" || "$line" != *=* ]] && continue
     key="${line%%=*}"; value="${line#*=}"
+    value="${value#"${value%%[![:space:]]*}"}"       # KEY= value 처럼 = 뒤의 공백은 무시한다
     value="${value#\"}"; value="${value%\"}"   # 양쪽 큰따옴표는 벗긴다
     [ -z "${!key:-}" ] && export "$key=$value"
   done < .env
