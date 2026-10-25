@@ -2,7 +2,9 @@ package com.exem.dust.service;
 
 import com.exem.dust.common.protocol.Data;
 import com.exem.dust.dao.AlertDao;
+import com.exem.dust.dao.MaintenanceDao;
 import com.exem.dust.dao.MeasurementDao;
+import com.exem.dust.domain.maintenance.MaintenanceChange;
 import com.exem.dust.domain.measurement.Measurement;
 import com.exem.dust.domain.station.Station;
 import org.slf4j.Logger;
@@ -11,7 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 수신 1건 = 트랜잭션 1개. 측정값 저장과 판정 결과 기록이 부분적으로만 남지 않게 한다.
+ * 수신 1건 = 트랜잭션 1개. 측정값 저장과 판정 결과(경보·점검) 기록이 부분적으로만 남지 않게 한다.
  * 중복 수신이면 판정하지 않는다. 그 시각은 이미 상태에 반영되어 있기 때문이다.
  */
 @Service
@@ -21,10 +23,12 @@ public class IngestService {
 
     private final MeasurementDao measurementDao;
     private final AlertDao alertDao;
+    private final MaintenanceDao maintenanceDao;
 
-    public IngestService(MeasurementDao measurementDao, AlertDao alertDao) {
+    public IngestService(MeasurementDao measurementDao, AlertDao alertDao, MaintenanceDao maintenanceDao) {
         this.measurementDao = measurementDao;
         this.alertDao = alertDao;
+        this.maintenanceDao = maintenanceDao;
     }
 
     /**
@@ -44,7 +48,25 @@ public class IngestService {
                         alert.issuedAt(), alert.rule().pollutant(), alert.triggerValue(), alert.sustainedHours());
             }
         });
+        for (var change : evaluation.maintenanceChanges()) {
+            maintenanceDao.upsert(change.window());
+            logMaintenance(change);
+        }
         return new IngestResult.Stored(measurement, evaluation);
+    }
+
+    private static void logMaintenance(MaintenanceChange change) {
+        var window = change.window();
+        switch (change) {
+            case MaintenanceChange.Started _ ->
+                    log.info("[{}] {} 장비 점검 시작 {}", window.stationId(), window.equipment(), window.startedAt());
+            case MaintenanceChange.Ended _ ->
+                    log.info("[{}] {} 장비 점검 종료 {} ~ {} ({}시간)", window.stationId(), window.equipment(),
+                            window.startedAt(), window.endedAt(), window.hours());
+            case MaintenanceChange.Extended _ -> {
+                // 매 시간 연장은 로그로 남길 만큼 중요하지 않다
+            }
+        }
     }
 
     /** 재접속한 측정소가 이어서 보낼 seq. 서버에 저장된 마지막 seq 다음이다. */
