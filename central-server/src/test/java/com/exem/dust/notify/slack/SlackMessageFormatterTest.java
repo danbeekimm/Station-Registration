@@ -1,6 +1,7 @@
 package com.exem.dust.notify.slack;
 
 import com.exem.dust.config.DustProperties;
+import com.exem.dust.config.dto.SlackProperties;
 import com.exem.dust.domain.alert.AlertIssued;
 import com.exem.dust.domain.alert.AlertRule;
 import com.exem.dust.domain.alert.PendingAlert;
@@ -16,7 +17,7 @@ class SlackMessageFormatterTest {
 
     private static DustProperties propertiesWithDashboard(String dashboardUrl) {
         return new DustProperties(null, null,
-                new DustProperties.Slack("https://hooks.slack.test/x", Duration.ofSeconds(3), Duration.ofSeconds(5), 3,
+                new SlackProperties("https://hooks.slack.test/x", Duration.ofSeconds(3), Duration.ofSeconds(5), 3,
                         Duration.ofSeconds(1), true, dashboardUrl),
                 List.of());
     }

@@ -5,6 +5,8 @@ import com.exem.dust.common.data.DustRecord;
 import com.exem.dust.common.data.DustRecordParser;
 import com.exem.dust.common.data.StationData;
 import com.exem.dust.domain.maintenance.Equipment;
+import com.exem.dust.tools.dto.MockMaintenanceWindow;
+import com.exem.dust.tools.dto.MockRow;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
@@ -19,7 +21,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -38,21 +39,9 @@ public final class MockStationGenerator {
     static final long RANDOM_SEED = 20230301L;
     static final List<Path> DEFAULT_SOURCES = List.of(Path.of("data/노원구.json"), Path.of("data/중구.json"), Path.of("data/강서구.json"));
 
-    /** 점검(결측) 구간. 시작·종료 시각 포함. */
-    record MaintenanceWindow(LocalDateTime start, LocalDateTime end, Set<Equipment> equipment) {
-        /** 이 시각에 이 장비가 점검 중인가. */
-        boolean covers(LocalDateTime at, Equipment target) {
-            return !at.isBefore(start) && !at.isAfter(end) && equipment.contains(target);
-        }
-    }
-
-    static final List<MaintenanceWindow> MAINTENANCE_WINDOWS = List.of(
-            new MaintenanceWindow(LocalDateTime.of(2023, 3, 14, 9, 0), LocalDateTime.of(2023, 3, 14, 11, 0), EnumSet.of(Equipment.PM25)),
-            new MaintenanceWindow(LocalDateTime.of(2023, 3, 27, 2, 0), LocalDateTime.of(2023, 3, 27, 3, 0), EnumSet.of(Equipment.PM10, Equipment.PM25)));
-
-    /** 생성된 한 행. 농도는 제공 데이터처럼 정수 문자열이고 결측은 null이다. */
-    record MockRow(LocalDateTime measuredAt, String stationName, String stationCode, String pm10, String pm25) {
-    }
+    static final List<MockMaintenanceWindow> MAINTENANCE_WINDOWS = List.of(
+            new MockMaintenanceWindow(LocalDateTime.of(2023, 3, 14, 9, 0), LocalDateTime.of(2023, 3, 14, 11, 0), EnumSet.of(Equipment.PM25)),
+            new MockMaintenanceWindow(LocalDateTime.of(2023, 3, 27, 2, 0), LocalDateTime.of(2023, 3, 27, 3, 0), EnumSet.of(Equipment.PM10, Equipment.PM25)));
 
     private static final DateTimeFormatter HOUR_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH");
 

@@ -4,6 +4,9 @@ import com.exem.dust.dao.AlertDao;
 import com.exem.dust.dao.SlackOutboxDao;
 import com.exem.dust.domain.alert.AlertIssued;
 import com.exem.dust.domain.alert.AlertRule;
+import com.exem.dust.notify.slack.dto.SendFailed;
+import com.exem.dust.notify.slack.dto.SendRateLimited;
+import com.exem.dust.notify.slack.dto.SendSucceeded;
 import com.exem.dust.support.PostgresTestContainerConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,7 +65,7 @@ class SlackDispatcherIntegrationTest {
     void sendsOldestPendingFirstAndMarksSent() {
         alertDao.insertIfAbsent(alert("111311", T0.plusHours(1), AlertRule.PM25_WATCH, 95.0, 3));
         alertDao.insertIfAbsent(alert("111121", T0, AlertRule.PM25_WATCH, 102.0, 2));
-        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendOutcome.Sent());
+        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendSucceeded());
 
         assertThat(dispatcher.dispatchOne()).isTrue();
         verify(webhookClient).send(anyString(), contains("중구(111121)"));
@@ -76,7 +79,7 @@ class SlackDispatcherIntegrationTest {
     @Test
     void failuresBackOffThenGiveUpAfterMaxAttemptsKeepingTheAlertRow() {
         alertDao.insertIfAbsent(alert("111311", T0, AlertRule.PM10_WARNING, 313.0, 2));
-        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendOutcome.Failed("HTTP 500 boom"));
+        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendFailed("HTTP 500 boom"));
 
         assertThat(dispatcher.dispatchOne()).isTrue();
         Map<String, Object> afterFirst = jdbc.sql("SELECT slack_status, slack_attempts, slack_error, slack_next_at > now() AS deferred FROM alert_log")
@@ -101,7 +104,7 @@ class SlackDispatcherIntegrationTest {
     @Test
     void rateLimitDefersWithoutCountingAnAttempt() {
         alertDao.insertIfAbsent(alert("111311", T0, AlertRule.PM10_WATCH, 160.0, 2));
-        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendOutcome.RateLimited(Duration.ofSeconds(30)));
+        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendRateLimited(Duration.ofSeconds(30)));
 
         assertThat(dispatcher.dispatchOne()).isTrue();
 
@@ -117,7 +120,7 @@ class SlackDispatcherIntegrationTest {
         alertDao.insertIfAbsent(alert("111311", T0, AlertRule.PM25_WATCH, 80.0, 2));
         alertDao.insertIfAbsent(alert("111311", T0.plusHours(1), AlertRule.PM25_WATCH, 85.0, 3));
         alertDao.insertIfAbsent(alert("111311", T0.plusHours(2), AlertRule.PM25_WATCH, 90.0, 4));
-        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendOutcome.Sent());
+        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendSucceeded());
 
         int delivered = 0;
         while (dispatcher.dispatchOne()) {
@@ -133,7 +136,7 @@ class SlackDispatcherIntegrationTest {
         alertDao.insertIfAbsent(alert("111212", T0.plusHours(2), AlertRule.PM10_WATCH, 160.0, 2));
         alertDao.insertIfAbsent(alert("111311", T0, AlertRule.PM10_WATCH, 160.0, 2));
         alertDao.insertIfAbsent(alert("111121", T0.plusHours(1), AlertRule.PM10_WATCH, 160.0, 2));
-        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendOutcome.Sent());
+        when(webhookClient.send(anyString(), anyString())).thenReturn(new SendSucceeded());
 
         while (dispatcher.dispatchOne()) {
             // 전부 비울 때까지

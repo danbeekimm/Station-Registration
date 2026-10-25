@@ -3,9 +3,13 @@ package com.exem.dust.domain.station;
 import com.exem.dust.domain.alert.AlertIssued;
 import com.exem.dust.domain.alert.AlertRule;
 import com.exem.dust.domain.maintenance.Equipment;
-import com.exem.dust.domain.maintenance.MaintenanceChange;
 import com.exem.dust.domain.maintenance.MaintenanceWindow;
+import com.exem.dust.domain.maintenance.dto.MaintenanceChange;
+import com.exem.dust.domain.maintenance.dto.MaintenanceEnded;
+import com.exem.dust.domain.maintenance.dto.MaintenanceExtended;
+import com.exem.dust.domain.maintenance.dto.MaintenanceStarted;
 import com.exem.dust.domain.measurement.Measurement;
+import com.exem.dust.domain.station.dto.StationEvaluation;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -20,10 +24,6 @@ import java.util.Optional;
  * DB·소켓 의존이 없어 순수 객체 테스트가 가능하고, 재접속·재기동 시에는 저장된 측정값을 {@link #accept}로 다시 흘려 복원한다.
  */
 public final class Station {
-
-    /** 측정값 1건을 받아들인 결과. */
-    public record Evaluation(Optional<AlertIssued> alert, List<MaintenanceChange> maintenanceChanges) {
-    }
 
     private final String id;
     private LocalDateTime lastMeasuredAt;
@@ -43,7 +43,7 @@ public final class Station {
     }
 
     /** 측정값 1건을 반영해 이 시각의 발령과 점검 변화를 돌려준다. 호출할 때마다 내부 상태가 그 시각까지 전진한다. */
-    public Evaluation accept(Measurement measurement) {
+    public StationEvaluation accept(Measurement measurement) {
         if (!measurement.stationId().equals(id)) {
             throw new IllegalArgumentException("측정소 %s의 상태에 %s 측정값을 넣을 수 없습니다".formatted(id, measurement.stationId()));
         }
@@ -56,7 +56,7 @@ public final class Station {
         var maintenanceChanges = trackMaintenance(measurement, continuous);
         var alert = evaluateAlert(measurement);
         lastMeasuredAt = measuredAt;
-        return new Evaluation(alert, maintenanceChanges);
+        return new StationEvaluation(alert, maintenanceChanges);
     }
 
     /** 룰별 연속 카운터를 갱신한 뒤, 지속 시간을 채운 룰 중 가장 심각한 하나를 고른다. */
@@ -83,7 +83,7 @@ public final class Station {
             var open = openMaintenance.get(equipment);
             if (open != null && !continuous) {
                 // 시각 누락: 진행 중이던 구간은 마지막 null 시각 + 1시간에 끝난 것으로 닫는다
-                changes.add(new MaintenanceChange.Ended(open.endedAt(open.lastNullAt().plusHours(1))));
+                changes.add(new MaintenanceEnded(open.endedAt(open.lastNullAt().plusHours(1))));
                 openMaintenance.remove(equipment);
                 open = null;
             }
@@ -93,10 +93,10 @@ public final class Station {
                         ? MaintenanceWindow.startedAt(id, equipment, measurement.measuredAt())
                         : open.extendedByOneHour();
                 openMaintenance.put(equipment, window);
-                changes.add(open == null ? new MaintenanceChange.Started(window) : new MaintenanceChange.Extended(window));
+                changes.add(open == null ? new MaintenanceStarted(window) : new MaintenanceExtended(window));
             } else if (open != null) {
                 openMaintenance.remove(equipment);
-                changes.add(new MaintenanceChange.Ended(open.endedAt(measurement.measuredAt())));
+                changes.add(new MaintenanceEnded(open.endedAt(measurement.measuredAt())));
             }
         }
         return List.copyOf(changes);

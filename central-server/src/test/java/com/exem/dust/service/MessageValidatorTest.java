@@ -4,6 +4,8 @@ import com.exem.dust.common.protocol.Data;
 import com.exem.dust.common.protocol.Reject;
 import com.exem.dust.common.protocol.RejectReason;
 import com.exem.dust.config.DustProperties;
+import com.exem.dust.config.dto.ValidationProperties;
+import com.exem.dust.service.dto.ValidationContext;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -22,11 +24,11 @@ class MessageValidatorTest {
     private static final LocalDateTime LAST = LocalDateTime.of(2023, 3, 1, 5, 0);
 
     private final MessageValidator validator = new MessageValidator(
-            new DustProperties(null, new DustProperties.Validation(2000, 1.0, Duration.ofDays(1), 3), null, List.of()),
+            new DustProperties(null, new ValidationProperties(2000, 1.0, Duration.ofDays(1), 3), null, List.of()),
             Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
 
-    private final MessageValidator.SessionContext context =
-            new MessageValidator.SessionContext("111311", 5, Optional.of(LAST));
+    private final ValidationContext context =
+            new ValidationContext("111311", 5, Optional.of(LAST));
 
     @Test
     void acceptsNextSeqAndResendOfLastSeq() {

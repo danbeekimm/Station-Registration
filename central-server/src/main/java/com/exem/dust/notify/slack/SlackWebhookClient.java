@@ -1,5 +1,9 @@
 package com.exem.dust.notify.slack;
 
+import com.exem.dust.notify.slack.dto.SendFailed;
+import com.exem.dust.notify.slack.dto.SendOutcome;
+import com.exem.dust.notify.slack.dto.SendRateLimited;
+import com.exem.dust.notify.slack.dto.SendSucceeded;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -32,17 +36,17 @@ public class SlackWebhookClient {
                     .exchange((request, response) -> {
                         var status = response.getStatusCode();
                         if (status.is2xxSuccessful()) {
-                            return new SendOutcome.Sent();
+                            return new SendSucceeded();
                         }
                         if (status.value() == 429) {
-                            return new SendOutcome.RateLimited(parseRetryAfter(response.getHeaders().getFirst("Retry-After")));
+                            return new SendRateLimited(parseRetryAfter(response.getHeaders().getFirst("Retry-After")));
                         }
-                        return new SendOutcome.Failed("HTTP %d %s".formatted(status.value(), bodyPreview(response.getBody())));
+                        return new SendFailed("HTTP %d %s".formatted(status.value(), bodyPreview(response.getBody())));
                     });
         } catch (RestClientException e) {
             // 연결 실패·타임아웃. 메시지에 URL이 섞일 수 있어 예외 종류와 원인만 남긴다
             var cause = e.getMostSpecificCause();
-            return new SendOutcome.Failed(cause.getClass().getSimpleName() + ": " + cause.getMessage());
+            return new SendFailed(cause.getClass().getSimpleName() + ": " + cause.getMessage());
         }
     }
 

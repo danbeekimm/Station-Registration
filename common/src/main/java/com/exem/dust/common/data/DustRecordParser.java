@@ -1,6 +1,6 @@
 package com.exem.dust.common.data;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.exem.dust.common.data.dto.RawDustRow;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.DeserializationFeature;
@@ -25,16 +25,7 @@ import java.util.TreeMap;
  */
 public final class DustRecordParser {
 
-    /** 원본 한 행. 숫자도 문자열로 들어오고 결측은 JSON null이라 모두 String으로 받는다. */
-    record RawRow(
-            @JsonProperty("날짜") String measuredAt,
-            @JsonProperty("측정소명") String stationName,
-            @JsonProperty("측정소코드") String stationCode,
-            @JsonProperty("PM10") String pm10,
-            @JsonProperty("PM2.5") String pm25) {
-    }
-
-    private static final TypeReference<List<RawRow>> ROW_LIST = new TypeReference<>() {
+    private static final TypeReference<List<RawDustRow>> ROW_LIST = new TypeReference<>() {
     };
 
     private final JsonMapper mapper = JsonMapper.builder()
@@ -78,7 +69,7 @@ public final class DustRecordParser {
     }
 
     /** 파일을 원본 행 목록으로 바꾼다. 빈 파일과 JSON 배열이 아닌 입력은 여기서 걸러진다. */
-    private List<RawRow> readRows(Path file) {
+    private List<RawDustRow> readRows(Path file) {
         byte[] content;
         try {
             content = Files.readAllBytes(file);

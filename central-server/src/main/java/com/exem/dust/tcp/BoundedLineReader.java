@@ -1,6 +1,10 @@
 package com.exem.dust.tcp;
 
 import com.exem.dust.common.protocol.Protocol;
+import com.exem.dust.tcp.dto.EndOfStream;
+import com.exem.dust.tcp.dto.LineRead;
+import com.exem.dust.tcp.dto.LineTooLong;
+import com.exem.dust.tcp.dto.ReadLine;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
@@ -30,12 +34,12 @@ final class BoundedLineReader implements Closeable {
             int next = input.read();
             if (next == -1) {
                 if (overflow) {
-                    return new LineRead.TooLong();
+                    return new LineTooLong();
                 }
-                return buffer.size() == 0 ? new LineRead.EndOfStream() : new LineRead.Line(buffer.toString(Protocol.CHARSET));
+                return buffer.size() == 0 ? new EndOfStream() : new ReadLine(buffer.toString(Protocol.CHARSET));
             }
             if (next == '\n') {
-                return overflow ? new LineRead.TooLong() : new LineRead.Line(buffer.toString(Protocol.CHARSET));
+                return overflow ? new LineTooLong() : new ReadLine(buffer.toString(Protocol.CHARSET));
             }
             if (next == '\r' || overflow) {
                 continue;

@@ -1,8 +1,11 @@
 package com.exem.dust.domain.station;
 
 import com.exem.dust.domain.maintenance.Equipment;
-import com.exem.dust.domain.maintenance.MaintenanceChange;
 import com.exem.dust.domain.maintenance.MaintenanceWindow;
+import com.exem.dust.domain.maintenance.dto.MaintenanceChange;
+import com.exem.dust.domain.maintenance.dto.MaintenanceEnded;
+import com.exem.dust.domain.maintenance.dto.MaintenanceExtended;
+import com.exem.dust.domain.maintenance.dto.MaintenanceStarted;
 import com.exem.dust.domain.measurement.Measurement;
 import org.junit.jupiter.api.Test;
 
@@ -22,8 +25,8 @@ class StationMaintenanceTest {
         var changes = feed(both(null, 10.0), both(20.0, 10.0));
 
         assertThat(changes).containsExactly(
-                new MaintenanceChange.Started(new MaintenanceWindow(STATION, Equipment.PM10, T0, null, 1)),
-                new MaintenanceChange.Ended(new MaintenanceWindow(STATION, Equipment.PM10, T0, T0.plusHours(1), 1)));
+                new MaintenanceStarted(new MaintenanceWindow(STATION, Equipment.PM10, T0, null, 1)),
+                new MaintenanceEnded(new MaintenanceWindow(STATION, Equipment.PM10, T0, T0.plusHours(1), 1)));
     }
 
     @Test
@@ -31,7 +34,7 @@ class StationMaintenanceTest {
         var changes = feed(both(null, 10.0), both(null, 10.0), both(null, 10.0), both(20.0, 10.0));
 
         assertThat(changes).extracting(change -> change.window().hours()).containsExactly(1, 2, 3, 3);
-        assertThat(changes.getLast()).isInstanceOf(MaintenanceChange.Ended.class);
+        assertThat(changes.getLast()).isInstanceOf(MaintenanceEnded.class);
         assertThat(changes.getLast().window().endedAt()).isEqualTo(T0.plusHours(3));
         assertThat(changes).extracting(change -> change.window().startedAt()).containsOnly(T0);
     }
@@ -40,7 +43,7 @@ class StationMaintenanceTest {
     void nullNumberNullMakesTwoWindows() {
         var changes = feed(both(null, 10.0), both(20.0, 10.0), both(null, 10.0));
 
-        assertThat(changes).filteredOn(MaintenanceChange.Started.class::isInstance)
+        assertThat(changes).filteredOn(MaintenanceStarted.class::isInstance)
                 .extracting(change -> change.window().startedAt()).containsExactly(T0, T0.plusHours(2));
     }
 
@@ -52,15 +55,15 @@ class StationMaintenanceTest {
                 .extracting(change -> change.window().hours()).containsExactly(1, 2, 2);
         assertThat(changes).filteredOn(change -> change.window().equipment() == Equipment.PM25)
                 .containsExactly(
-                        new MaintenanceChange.Started(new MaintenanceWindow(STATION, Equipment.PM25, T0.plusHours(1), null, 1)),
-                        new MaintenanceChange.Ended(new MaintenanceWindow(STATION, Equipment.PM25, T0.plusHours(1), T0.plusHours(2), 1)));
+                        new MaintenanceStarted(new MaintenanceWindow(STATION, Equipment.PM25, T0.plusHours(1), null, 1)),
+                        new MaintenanceEnded(new MaintenanceWindow(STATION, Equipment.PM25, T0.plusHours(1), T0.plusHours(2), 1)));
     }
 
     @Test
     void trailingNullLeavesWindowOpen() {
         var changes = feed(both(20.0, 10.0), both(null, 10.0), both(null, 10.0));
 
-        assertThat(changes.getLast()).isInstanceOf(MaintenanceChange.Extended.class);
+        assertThat(changes.getLast()).isInstanceOf(MaintenanceExtended.class);
         assertThat(changes.getLast().window().isOpen()).isTrue();
     }
 
@@ -73,7 +76,7 @@ class StationMaintenanceTest {
         var changes = station.accept(measurement(T0.plusHours(3), 20.0, 10.0)).maintenanceChanges();
 
         assertThat(changes).containsExactly(
-                new MaintenanceChange.Ended(new MaintenanceWindow(STATION, Equipment.PM10, T0, T0.plusHours(2), 2)));
+                new MaintenanceEnded(new MaintenanceWindow(STATION, Equipment.PM10, T0, T0.plusHours(2), 2)));
     }
 
     @Test
@@ -84,8 +87,8 @@ class StationMaintenanceTest {
         var changes = station.accept(measurement(T0.plusHours(2), null, 10.0)).maintenanceChanges();
 
         assertThat(changes).containsExactly(
-                new MaintenanceChange.Ended(new MaintenanceWindow(STATION, Equipment.PM10, T0, T0.plusHours(1), 1)),
-                new MaintenanceChange.Started(new MaintenanceWindow(STATION, Equipment.PM10, T0.plusHours(2), null, 1)));
+                new MaintenanceEnded(new MaintenanceWindow(STATION, Equipment.PM10, T0, T0.plusHours(1), 1)),
+                new MaintenanceStarted(new MaintenanceWindow(STATION, Equipment.PM10, T0.plusHours(2), null, 1)));
     }
 
     @Test
@@ -96,7 +99,7 @@ class StationMaintenanceTest {
 
         var afterReconnect = restored.accept(measurement(T0.plusHours(2), null, 10.0)).maintenanceChanges();
 
-        assertThat(afterReconnect).singleElement().isInstanceOf(MaintenanceChange.Extended.class);
+        assertThat(afterReconnect).singleElement().isInstanceOf(MaintenanceExtended.class);
         assertThat(afterReconnect.getFirst().window().hours()).isEqualTo(3);
     }
 

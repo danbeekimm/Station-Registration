@@ -1,7 +1,8 @@
 package com.exem.dust.support;
 
-import com.exem.dust.common.codec.DecodeResult;
 import com.exem.dust.common.codec.NdjsonCodec;
+import com.exem.dust.common.codec.dto.DecodedMessage;
+import com.exem.dust.common.codec.dto.InvalidMessage;
 import com.exem.dust.common.protocol.Hello;
 import com.exem.dust.common.protocol.Message;
 import com.exem.dust.common.protocol.Protocol;
@@ -56,8 +57,8 @@ public final class TestStationClient implements AutoCloseable {
             throw new IOException("서버가 연결을 닫음");
         }
         return switch (codec.decode(line)) {
-            case DecodeResult.Decoded(Message message) -> message;
-            case DecodeResult.Invalid invalid -> throw new IOException("해석 불가 응답: " + invalid);
+            case DecodedMessage(Message message) -> message;
+            case InvalidMessage invalid -> throw new IOException("해석 불가 응답: " + invalid);
         };
     }
 

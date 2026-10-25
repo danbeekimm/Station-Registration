@@ -478,6 +478,7 @@ dustwatch/
 │     ├ tools/       MockStationGenerator(은평구 가상 데이터 생성기, makeMockStation 태스크), Mt19937
 │     ├ admin/       RegisterStationCommand
 │     └ config/      DustProperties(dust.*), SlackConfig, TimeConfig
+│     record는 각 패키지의 dto/ 하위에 둔다(DecodeResult·IngestResult·AuthResult·SendOutcome·LineRead·MaintenanceChange와 구현 record, 설정·통계 record). SSE 본문은 web/payload/
 ├ data/              노원구·중구·강서구(제공), 은평구(가상)
 ├ db/                init.sql(롤·DB), schema.sql(테이블)
 ├ docker-compose.yml postgres:18-alpine

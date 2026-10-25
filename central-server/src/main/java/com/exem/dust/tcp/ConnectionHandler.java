@@ -1,7 +1,8 @@
 package com.exem.dust.tcp;
 
-import com.exem.dust.common.codec.DecodeResult;
 import com.exem.dust.common.codec.NdjsonCodec;
+import com.exem.dust.common.codec.dto.DecodedMessage;
+import com.exem.dust.common.codec.dto.InvalidMessage;
 import com.exem.dust.common.protocol.Ack;
 import com.exem.dust.common.protocol.Bye;
 import com.exem.dust.common.protocol.Data;
@@ -11,16 +12,24 @@ import com.exem.dust.common.protocol.Reject;
 import com.exem.dust.common.protocol.RejectReason;
 import com.exem.dust.common.protocol.Welcome;
 import com.exem.dust.config.DustProperties;
+import com.exem.dust.config.dto.TcpProperties;
 import com.exem.dust.domain.reject.RawMessageMasker;
 import com.exem.dust.domain.station.RegisteredStation;
 import com.exem.dust.domain.station.Station;
-import com.exem.dust.service.AuthResult;
-import com.exem.dust.service.IngestResult;
 import com.exem.dust.service.IngestService;
 import com.exem.dust.service.MessageValidator;
 import com.exem.dust.service.RejectRecorder;
 import com.exem.dust.service.StationAuthService;
 import com.exem.dust.service.StationStateLoader;
+import com.exem.dust.service.dto.AuthRejected;
+import com.exem.dust.service.dto.IngestResult;
+import com.exem.dust.service.dto.MeasurementDuplicate;
+import com.exem.dust.service.dto.StationAuthenticated;
+import com.exem.dust.service.dto.ValidationContext;
+import com.exem.dust.tcp.dto.EndOfStream;
+import com.exem.dust.tcp.dto.LineRead;
+import com.exem.dust.tcp.dto.LineTooLong;
+import com.exem.dust.tcp.dto.ReadLine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -44,7 +53,7 @@ final class ConnectionHandler implements Runnable {
     private final Socket socket;
     private final String remoteAddress;
     private final String remoteIp;
-    private final DustProperties.Tcp tcp;
+    private final TcpProperties tcp;
     private final int maxConsecutiveOutOfOrder;
     private final NdjsonCodec codec;
     private final StationAuthService authService;
@@ -119,18 +128,18 @@ final class ConnectionHandler implements Runnable {
             return false;
         }
         return switch (firstLine) {
-            case LineRead.EndOfStream _ -> false;
-            case LineRead.TooLong _ -> {
+            case EndOfStream _ -> false;
+            case LineTooLong _ -> {
                 rejectAndLog(writer, RejectReason.HELLO_EXPECTED, "메시지가 너무 깁니다", null, null);
                 yield false;
             }
-            case LineRead.Line(String text) -> switch (codec.decode(text)) {
-                case DecodeResult.Invalid(var reason, var detail) -> {
+            case ReadLine(String text) -> switch (codec.decode(text)) {
+                case InvalidMessage(var reason, var detail) -> {
                     rejectAndLog(writer, RejectReason.HELLO_EXPECTED, detail + " (" + reason + ")", null, text);
                     yield false;
                 }
-                case DecodeResult.Decoded(Hello hello) -> authenticate(hello, writer);
-                case DecodeResult.Decoded(Message other) -> {
+                case DecodedMessage(Hello hello) -> authenticate(hello, writer);
+                case DecodedMessage(Message other) -> {
                     rejectAndLog(writer, RejectReason.HELLO_EXPECTED, "첫 메시지는 HELLO여야 합니다", null, text);
                     yield false;
                 }
@@ -141,12 +150,12 @@ final class ConnectionHandler implements Runnable {
     /** 토큰 검증 → 세션 등록(기존 접속 교체) → 상태 복원 → WELCOME 순. 이후부터 읽기 타임아웃이 30초로 바뀐다. */
     private boolean authenticate(Hello hello, MessageWriter writer) throws IOException {
         return switch (authService.authenticate(hello)) {
-            case AuthResult.Rejected(var reason, var detail) -> {
+            case AuthRejected(var reason, var detail) -> {
                 // Hello.toString()은 토큰을 가린 표현이라 원문 대신 저장해도 안전하다
                 rejectAndLog(writer, reason, detail, hello.stationId(), hello.toString());
                 yield false;
             }
-            case AuthResult.Authenticated(var authenticated) -> {
+            case StationAuthenticated(var authenticated) -> {
                 station = authenticated;
                 var replaced = sessions.register(station.id(), this);
                 if (replaced != null) {
@@ -168,12 +177,12 @@ final class ConnectionHandler implements Runnable {
     private void serve(BoundedLineReader reader, MessageWriter writer) throws IOException {
         while (true) {
             switch (reader.readLine()) {
-                case LineRead.EndOfStream _ -> {
+                case EndOfStream _ -> {
                     log.info("[{}] 측정소가 연결을 닫음", describe());
                     return;
                 }
-                    case LineRead.TooLong _ -> rejectAndLog(writer, RejectReason.MALFORMED, "메시지가 너무 깁니다", station.id(), null);
-                case LineRead.Line(String text) -> {
+                    case LineTooLong _ -> rejectAndLog(writer, RejectReason.MALFORMED, "메시지가 너무 깁니다", station.id(), null);
+                case ReadLine(String text) -> {
                     if (!handle(text, writer)) {
                         return;
                     }
@@ -185,16 +194,16 @@ final class ConnectionHandler implements Runnable {
     /** @return 접속을 계속 유지하면 true */
     private boolean handle(String text, MessageWriter writer) throws IOException {
         return switch (codec.decode(text)) {
-            case DecodeResult.Invalid(var reason, var detail) -> {
+            case InvalidMessage(var reason, var detail) -> {
                 rejectAndLog(writer, reason, detail, station.id(), text);
                 yield true;
             }
-            case DecodeResult.Decoded(Data data) -> handleData(data, writer, text);
-            case DecodeResult.Decoded(Bye _) -> {
+            case DecodedMessage(Data data) -> handleData(data, writer, text);
+            case DecodedMessage(Bye _) -> {
                 log.info("[{}] BYE 수신, 정상 종료", describe());
                 yield false;
             }
-            case DecodeResult.Decoded(Message other) -> {
+            case DecodedMessage(Message other) -> {
                 rejectAndLog(writer, RejectReason.UNEXPECTED_MESSAGE, "인증 후에는 DATA와 BYE만 받습니다", station.id(), text);
                 yield true;
             }
@@ -203,7 +212,7 @@ final class ConnectionHandler implements Runnable {
 
     /** 검증 → 저장·판정 → ACK. 거부된 건의 seq는 소비해 측정소가 다음 건을 이어 보낼 수 있게 한다. @return 접속 유지 여부 */
     private boolean handleData(Data data, MessageWriter writer, String rawText) throws IOException {
-        var context = new MessageValidator.SessionContext(station.id(), lastSeenSeq, state.lastMeasuredAt());
+        var context = new ValidationContext(station.id(), lastSeenSeq, state.lastMeasuredAt());
         var violation = validator.validate(data, context);
         if (violation.isPresent()) {
             var reject = violation.get();
@@ -232,7 +241,7 @@ final class ConnectionHandler implements Runnable {
         }
         lastSeenSeq = Math.max(lastSeenSeq, data.seq());
         writer.send(new Ack(data.seq()));
-        if (result instanceof IngestResult.Duplicate) {
+        if (result instanceof MeasurementDuplicate) {
             log.info("[{}] seq={} {} 중복 수신, 저장 생략 후 ACK 재전송", describe(), data.seq(), data.measuredAt());
         } else if (log.isDebugEnabled()) {
             log.debug("[{}] seq={} {} 저장", describe(), data.seq(), data.measuredAt());

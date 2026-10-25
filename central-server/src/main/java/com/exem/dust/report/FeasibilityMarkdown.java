@@ -3,6 +3,9 @@ package com.exem.dust.report;
 import com.exem.dust.domain.alert.AlertRule;
 import com.exem.dust.domain.maintenance.Equipment;
 import com.exem.dust.domain.measurement.Pollutant;
+import com.exem.dust.report.dto.ConcentrationPeak;
+import com.exem.dust.report.dto.RuleStats;
+import com.exem.dust.report.dto.ThresholdStreak;
 
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -92,7 +95,7 @@ public final class FeasibilityMarkdown {
     }
 
     /** 룰별 비고. 미달이면 지속 시간이 모자랐는지, 농도 자체가 낮았는지 구분한다. */
-    private static String remark(AlertRule rule, StationFeasibility.RuleStats stats, Optional<StationFeasibility.Peak> peak) {
+    private static String remark(AlertRule rule, RuleStats stats, Optional<ConcentrationPeak> peak) {
         if (rule.pollutant() == Pollutant.O3) {
             return "O3 데이터 없음";
         }
@@ -111,7 +114,7 @@ public final class FeasibilityMarkdown {
     }
 
     /** 최장 연속 구간 문구. 한 번도 기준을 넘지 않았으면 "없음". */
-    private static String describeStreak(StationFeasibility.Streak streak) {
+    private static String describeStreak(ThresholdStreak streak) {
         if (!streak.exists()) {
             return "없음";
         }

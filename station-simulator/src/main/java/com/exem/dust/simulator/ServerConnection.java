@@ -1,7 +1,8 @@
 package com.exem.dust.simulator;
 
-import com.exem.dust.common.codec.DecodeResult;
 import com.exem.dust.common.codec.NdjsonCodec;
+import com.exem.dust.common.codec.dto.DecodedMessage;
+import com.exem.dust.common.codec.dto.InvalidMessage;
 import com.exem.dust.common.protocol.Message;
 import com.exem.dust.common.protocol.Protocol;
 
@@ -58,8 +59,8 @@ final class ServerConnection implements AutoCloseable {
             throw new EOFException("서버가 연결을 닫았습니다");
         }
         return switch (codec.decode(line)) {
-            case DecodeResult.Decoded decoded -> decoded.message();
-            case DecodeResult.Invalid invalid -> throw new ProtocolException("서버 응답을 해석할 수 없습니다: " + invalid.reason());
+            case DecodedMessage decoded -> decoded.message();
+            case InvalidMessage invalid -> throw new ProtocolException("서버 응답을 해석할 수 없습니다: " + invalid.reason());
         };
     }
 

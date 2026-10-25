@@ -3,7 +3,12 @@ package com.exem.dust.web.sse;
 import com.exem.dust.domain.event.AlertIssuedEvent;
 import com.exem.dust.domain.event.MaintenanceChangedEvent;
 import com.exem.dust.domain.event.MeasurementStoredEvent;
-import com.exem.dust.domain.maintenance.MaintenanceChange;
+import com.exem.dust.domain.maintenance.dto.MaintenanceEnded;
+import com.exem.dust.domain.maintenance.dto.MaintenanceExtended;
+import com.exem.dust.domain.maintenance.dto.MaintenanceStarted;
+import com.exem.dust.web.payload.AlertPayload;
+import com.exem.dust.web.payload.MaintenancePayload;
+import com.exem.dust.web.payload.MeasurementPayload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -13,7 +18,6 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -26,20 +30,6 @@ public class SseBroadcaster {
 
     private static final Logger log = LoggerFactory.getLogger(SseBroadcaster.class);
     private static final long NO_TIMEOUT = 0L;
-
-    /** 화면이 쓰는 이벤트 payload. */
-    public record MeasurementEvent(String stationId, LocalDateTime at, Double pm10, Double pm25) {
-    }
-
-    /** 경보 1건. 피드 행과 카드 배지를 갱신한다. */
-    public record AlertEvent(String stationId, LocalDateTime issuedAt, int grade, String level, String pollutant,
-                             double triggerValue, int sustainedHours) {
-    }
-
-    /** 점검 변화 1건. kind는 started·extended·ended. */
-    public record MaintenanceEvent(String stationId, String equipment, LocalDateTime startedAt, LocalDateTime endedAt,
-                                   int hours, String kind) {
-    }
 
     private final Set<SseEmitter> emitters = new CopyOnWriteArraySet<>();
 
@@ -62,14 +52,14 @@ public class SseBroadcaster {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onMeasurement(MeasurementStoredEvent event) {
         var measurement = event.measurement();
-        broadcast("measurement", new MeasurementEvent(measurement.stationId(), measurement.measuredAt(), measurement.pm10(), measurement.pm25()));
+        broadcast("measurement", new MeasurementPayload(measurement.stationId(), measurement.measuredAt(), measurement.pm10(), measurement.pm25()));
     }
 
     /** 기록이 커밋된 경보. 룰 정보를 화면용 필드로 풀어 보낸다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAlert(AlertIssuedEvent event) {
         var alert = event.alert();
-        broadcast("alert", new AlertEvent(alert.stationId(), alert.issuedAt(), alert.rule().grade(), alert.rule().label(),
+        broadcast("alert", new AlertPayload(alert.stationId(), alert.issuedAt(), alert.rule().grade(), alert.rule().label(),
                 alert.rule().pollutant().label(), alert.triggerValue(), alert.sustainedHours()));
     }
 
@@ -78,11 +68,11 @@ public class SseBroadcaster {
     public void onMaintenance(MaintenanceChangedEvent event) {
         var window = event.change().window();
         var kind = switch (event.change()) {
-            case MaintenanceChange.Started _ -> "started";
-            case MaintenanceChange.Extended _ -> "extended";
-            case MaintenanceChange.Ended _ -> "ended";
+            case MaintenanceStarted _ -> "started";
+            case MaintenanceExtended _ -> "extended";
+            case MaintenanceEnded _ -> "ended";
         };
-        broadcast("maintenance", new MaintenanceEvent(window.stationId(), window.equipment().name(), window.startedAt(),
+        broadcast("maintenance", new MaintenancePayload(window.stationId(), window.equipment().name(), window.startedAt(),
                 window.endedAt(), window.hours(), kind));
     }
 

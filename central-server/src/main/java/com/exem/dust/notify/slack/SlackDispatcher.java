@@ -1,10 +1,14 @@
 package com.exem.dust.notify.slack;
 
 import com.exem.dust.config.DustProperties;
+import com.exem.dust.config.dto.SlackProperties;
 import com.exem.dust.dao.SlackOutboxDao;
 import com.exem.dust.domain.alert.PendingAlert;
 import com.exem.dust.domain.event.AlertIssuedEvent;
 import com.exem.dust.domain.event.SlackDeliveryEvent;
+import com.exem.dust.notify.slack.dto.SendFailed;
+import com.exem.dust.notify.slack.dto.SendRateLimited;
+import com.exem.dust.notify.slack.dto.SendSucceeded;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,7 +38,7 @@ public class SlackDispatcher implements SmartLifecycle {
     private static final Logger log = LoggerFactory.getLogger(SlackDispatcher.class);
     private static final Duration IDLE_POLL = Duration.ofSeconds(1);
 
-    private final DustProperties.Slack slack;
+    private final SlackProperties slack;
     private final SlackOutboxDao outbox;
     private final SlackWebhookClient client;
     private final SlackMessageFormatter formatter;
@@ -121,17 +125,17 @@ public class SlackDispatcher implements SmartLifecycle {
     private void deliver(PendingAlert pending, Instant now) {
         var alert = pending.alert();
         var status = switch (client.send(slack.webhookUrl(), formatter.format(pending))) {
-            case SendOutcome.Sent _ -> {
+            case SendSucceeded _ -> {
                 outbox.markSent(pending.id(), now);
                 log.info("Slack 전송 완료: [{}] {} {}", alert.stationId(), alert.rule().label(), alert.issuedAt());
                 yield "SENT";
             }
-            case SendOutcome.RateLimited(var retryAfter) -> {
+            case SendRateLimited(var retryAfter) -> {
                 outbox.defer(pending.id(), now.plus(retryAfter));
                 log.warn("Slack 429, {}초 후 재시도: [{}] {}", retryAfter.toSeconds(), alert.stationId(), alert.issuedAt());
                 yield "RATE_LIMITED";
             }
-            case SendOutcome.Failed(var error) -> {
+            case SendFailed(var error) -> {
                 int attempts = pending.attempts() + 1;
                 if (attempts >= slack.maxAttempts()) {
                     outbox.markFailed(pending.id(), attempts, error);

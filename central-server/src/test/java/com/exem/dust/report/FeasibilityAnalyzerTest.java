@@ -3,6 +3,7 @@ package com.exem.dust.report;
 import com.exem.dust.common.data.DustRecordParser;
 import com.exem.dust.domain.alert.AlertRule;
 import com.exem.dust.domain.maintenance.Equipment;
+import com.exem.dust.report.dto.ConcentrationPeak;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -35,7 +36,7 @@ class FeasibilityAnalyzerTest {
         assertThat(result.maintenanceWindows().get(Equipment.PM10)).hasSize(1);
         assertThat(result.maintenanceWindows().get(Equipment.PM25)).hasSize(6);
         assertThat(result.peaks().get(com.exem.dust.domain.measurement.Pollutant.PM10))
-                .isEqualTo(new StationFeasibility.Peak(313.0, LocalDateTime.of(2023, 3, 23, 22, 0)));
+                .isEqualTo(new ConcentrationPeak(313.0, LocalDateTime.of(2023, 3, 23, 22, 0)));
         assertThat(result.ruleStats().get(AlertRule.PM10_WARNING).longestStreak().hours()).isEqualTo(2);
         assertThat(result.ruleStats().get(AlertRule.PM25_WARNING).longestStreak().exists()).isFalse();
         assertThat(result.missingRepresentations()).isEqualTo(Map.of("JSON null", 11L));

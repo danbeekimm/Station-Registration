@@ -7,9 +7,15 @@ import com.exem.dust.dao.MeasurementDao;
 import com.exem.dust.domain.event.AlertIssuedEvent;
 import com.exem.dust.domain.event.MaintenanceChangedEvent;
 import com.exem.dust.domain.event.MeasurementStoredEvent;
-import com.exem.dust.domain.maintenance.MaintenanceChange;
+import com.exem.dust.domain.maintenance.dto.MaintenanceChange;
+import com.exem.dust.domain.maintenance.dto.MaintenanceEnded;
+import com.exem.dust.domain.maintenance.dto.MaintenanceExtended;
+import com.exem.dust.domain.maintenance.dto.MaintenanceStarted;
 import com.exem.dust.domain.measurement.Measurement;
 import com.exem.dust.domain.station.Station;
+import com.exem.dust.service.dto.IngestResult;
+import com.exem.dust.service.dto.MeasurementDuplicate;
+import com.exem.dust.service.dto.MeasurementStored;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -47,7 +53,7 @@ public class IngestService {
     public IngestResult ingest(Station state, Data data) {
         var measurement = new Measurement(state.id(), data.seq(), data.measuredAt(), data.pm10(), data.pm25(), data.o3());
         if (!measurementDao.insertIfAbsent(measurement)) {
-            return new IngestResult.Duplicate(measurement);
+            return new MeasurementDuplicate(measurement);
         }
         var evaluation = state.accept(measurement);
         evaluation.alert().ifPresent(alert -> {
@@ -63,19 +69,19 @@ public class IngestService {
             events.publishEvent(new MaintenanceChangedEvent(change));
         }
         events.publishEvent(new MeasurementStoredEvent(measurement));
-        return new IngestResult.Stored(measurement, evaluation);
+        return new MeasurementStored(measurement, evaluation);
     }
 
     /** 점검 시작·종료만 로그로 남긴다. 매 시간 연장은 소음이다. */
     private static void logMaintenance(MaintenanceChange change) {
         var window = change.window();
         switch (change) {
-            case MaintenanceChange.Started _ ->
+            case MaintenanceStarted _ ->
                     log.info("[{}] {} 장비 점검 시작 {}", window.stationId(), window.equipment(), window.startedAt());
-            case MaintenanceChange.Ended _ ->
+            case MaintenanceEnded _ ->
                     log.info("[{}] {} 장비 점검 종료 {} ~ {} ({}시간)", window.stationId(), window.equipment(),
                             window.startedAt(), window.endedAt(), window.hours());
-            case MaintenanceChange.Extended _ -> {
+            case MaintenanceExtended _ -> {
                 // 매 시간 연장은 로그로 남길 만큼 중요하지 않다
             }
         }

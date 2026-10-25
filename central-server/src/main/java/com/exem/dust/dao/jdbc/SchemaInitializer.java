@@ -8,9 +8,9 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import javax.sql.DataSource;
 
 /**
  * 기동 시 db/schema.sql을 실행한다. 스크립트가 전부 IF NOT EXISTS라 두 번째 기동부터는 아무것도 바꾸지 않는다.

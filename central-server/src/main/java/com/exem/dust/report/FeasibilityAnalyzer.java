@@ -3,11 +3,14 @@ package com.exem.dust.report;
 import com.exem.dust.common.data.DustRecordParser;
 import com.exem.dust.domain.alert.AlertRule;
 import com.exem.dust.domain.maintenance.Equipment;
-import com.exem.dust.domain.maintenance.MaintenanceChange;
 import com.exem.dust.domain.maintenance.MaintenanceWindow;
+import com.exem.dust.domain.maintenance.dto.MaintenanceEnded;
 import com.exem.dust.domain.measurement.Measurement;
 import com.exem.dust.domain.measurement.Pollutant;
 import com.exem.dust.domain.station.Station;
+import com.exem.dust.report.dto.ConcentrationPeak;
+import com.exem.dust.report.dto.RuleStats;
+import com.exem.dust.report.dto.ThresholdStreak;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -45,17 +48,17 @@ public final class FeasibilityAnalyzer {
         var data = dustFile.single();
         var station = new Station(data.stationCode());
 
-        var peaks = new EnumMap<Pollutant, StationFeasibility.Peak>(Pollutant.class);
+        var peaks = new EnumMap<Pollutant, ConcentrationPeak>(Pollutant.class);
         var recordedAlerts = new EnumMap<AlertRule, Integer>(AlertRule.class);
         var streaks = new EnumMap<AlertRule, Integer>(AlertRule.class);
         var hoursMeetingRule = new EnumMap<AlertRule, Integer>(AlertRule.class);
-        var longestStreaks = new EnumMap<AlertRule, StationFeasibility.Streak>(AlertRule.class);
+        var longestStreaks = new EnumMap<AlertRule, ThresholdStreak>(AlertRule.class);
         var windows = new EnumMap<Equipment, List<MaintenanceWindow>>(Equipment.class);
         var openWindows = new EnumMap<Equipment, MaintenanceWindow>(Equipment.class);
         for (var rule : AlertRule.values()) {
             recordedAlerts.put(rule, 0);
             hoursMeetingRule.put(rule, 0);
-            longestStreaks.put(rule, StationFeasibility.Streak.NONE);
+            longestStreaks.put(rule, ThresholdStreak.NONE);
         }
         for (var equipment : Equipment.values()) {
             windows.put(equipment, new ArrayList<>());
@@ -75,7 +78,7 @@ public final class FeasibilityAnalyzer {
             evaluation.alert().ifPresent(alert -> recordedAlerts.merge(alert.rule(), 1, Integer::sum));
             for (var change : evaluation.maintenanceChanges()) {
                 var window = change.window();
-                if (change instanceof MaintenanceChange.Ended) {
+                if (change instanceof MaintenanceEnded) {
                     openWindows.remove(window.equipment());
                     windows.get(window.equipment()).add(window);
                 } else {
@@ -86,7 +89,7 @@ public final class FeasibilityAnalyzer {
             for (var pollutant : Pollutant.values()) {
                 var value = pollutant.valueOf(measurement);
                 if (value != null && (!peaks.containsKey(pollutant) || value > peaks.get(pollutant).value())) {
-                    peaks.put(pollutant, new StationFeasibility.Peak(value, record.measuredAt()));
+                    peaks.put(pollutant, new ConcentrationPeak(value, record.measuredAt()));
                 }
             }
             // Station과 같은 규칙으로 룰별 연속 시간을 따로 세어, 상위 등급에 가려진 충족 시간과 조건 미달 구간까지 본다
@@ -97,16 +100,16 @@ public final class FeasibilityAnalyzer {
                     hoursMeetingRule.merge(rule, 1, Integer::sum);
                 }
                 if (streak > longestStreaks.get(rule).hours()) {
-                    longestStreaks.put(rule, new StationFeasibility.Streak(record.measuredAt().minusHours(streak - 1), record.measuredAt(), streak));
+                    longestStreaks.put(rule, new ThresholdStreak(record.measuredAt().minusHours(streak - 1), record.measuredAt(), streak));
                 }
             }
             previous = record.measuredAt();
         }
         openWindows.forEach((equipment, window) -> windows.get(equipment).add(window));
 
-        var ruleStats = new EnumMap<AlertRule, StationFeasibility.RuleStats>(AlertRule.class);
+        var ruleStats = new EnumMap<AlertRule, RuleStats>(AlertRule.class);
         for (var rule : AlertRule.values()) {
-            ruleStats.put(rule, new StationFeasibility.RuleStats(hoursMeetingRule.get(rule), longestStreaks.get(rule)));
+            ruleStats.put(rule, new RuleStats(hoursMeetingRule.get(rule), longestStreaks.get(rule)));
         }
         return new StationFeasibility(data.stationCode(), data.stationName(), data.records().size(), peaks, recordedAlerts,
                 ruleStats, windows, countMissingRepresentations(file), timeGaps, dustFile.warnings());

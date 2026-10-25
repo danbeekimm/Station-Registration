@@ -1,5 +1,8 @@
 package com.exem.dust.common.codec;
 
+import com.exem.dust.common.codec.dto.DecodeResult;
+import com.exem.dust.common.codec.dto.DecodedMessage;
+import com.exem.dust.common.codec.dto.InvalidMessage;
 import com.exem.dust.common.protocol.Message;
 import com.exem.dust.common.protocol.RejectReason;
 import tools.jackson.core.JacksonException;
@@ -28,13 +31,13 @@ public final class NdjsonCodec {
     /** 구문 오류는 MALFORMED, JSON은 맞지만 메시지 형태가 아니면 SCHEMA. 클라이언트에 내부 예외 문구는 돌려주지 않는다. */
     public DecodeResult decode(String line) {
         try {
-            return new DecodeResult.Decoded(mapper.readValue(line, Message.class));
+            return new DecodedMessage(mapper.readValue(line, Message.class));
         } catch (StreamReadException e) {
-            return new DecodeResult.Invalid(RejectReason.MALFORMED, "JSON 구문 오류");
+            return new InvalidMessage(RejectReason.MALFORMED, "JSON 구문 오류");
         } catch (DatabindException e) {
-            return new DecodeResult.Invalid(RejectReason.SCHEMA, "메시지 형식 불일치");
+            return new InvalidMessage(RejectReason.SCHEMA, "메시지 형식 불일치");
         } catch (JacksonException e) {
-            return new DecodeResult.Invalid(RejectReason.MALFORMED, "메시지를 해석할 수 없음");
+            return new InvalidMessage(RejectReason.MALFORMED, "메시지를 해석할 수 없음");
         }
     }
 }

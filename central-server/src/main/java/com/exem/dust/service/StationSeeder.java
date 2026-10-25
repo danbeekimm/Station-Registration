@@ -1,6 +1,7 @@
 package com.exem.dust.service;
 
 import com.exem.dust.config.DustProperties;
+import com.exem.dust.config.dto.StationSeed;
 import com.exem.dust.dao.StationDao;
 import com.exem.dust.domain.station.RegisteredStation;
 import com.exem.dust.domain.station.TokenHasher;
@@ -41,7 +42,7 @@ public class StationSeeder {
                 properties.stations().stream().map(seed -> seed.code() + " " + seed.name()).toList());
     }
 
-    private static void requireText(String value, String field, DustProperties.StationSeed seed) {
+    private static void requireText(String value, String field, StationSeed seed) {
         if (value == null || value.isBlank()) {
             throw new IllegalStateException("dust.stations 항목에 %s가 비어 있습니다: %s".formatted(field, seed));
         }

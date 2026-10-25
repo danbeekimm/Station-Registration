@@ -1,6 +1,7 @@
 package com.exem.dust.tools;
 
 import com.exem.dust.common.data.DustRecordParser;
+import com.exem.dust.tools.dto.MockRow;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -46,7 +47,7 @@ class MockStationGeneratorTest {
             assertThat(row.stationCode()).isEqualTo("111191");
             assertThat(row.stationName()).isEqualTo("은평구");
         });
-        assertThat(rows.stream().filter(row -> row.pm10() == null).map(MockStationGenerator.MockRow::measuredAt))
+        assertThat(rows.stream().filter(row -> row.pm10() == null).map(MockRow::measuredAt))
                 .containsExactly(LocalDateTime.of(2023, 3, 27, 2, 0), LocalDateTime.of(2023, 3, 27, 3, 0));
         assertThat(rows.stream().filter(row -> row.pm25() == null).count()).isEqualTo(5);
         assertThat(rows.stream().filter(row -> row.pm10() != null).map(row -> Integer.parseInt(row.pm10())))

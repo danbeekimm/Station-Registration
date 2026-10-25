@@ -1,5 +1,7 @@
 package com.exem.dust.common.codec;
 
+import com.exem.dust.common.codec.dto.DecodedMessage;
+import com.exem.dust.common.codec.dto.InvalidMessage;
 import com.exem.dust.common.protocol.Ack;
 import com.exem.dust.common.protocol.Bye;
 import com.exem.dust.common.protocol.Data;
@@ -37,7 +39,7 @@ class NdjsonCodecTest {
         var line = codec.encode(original);
 
         assertThat(line).doesNotContain("\n");
-        assertThat(codec.decode(line)).isEqualTo(new DecodeResult.Decoded(original));
+        assertThat(codec.decode(line)).isEqualTo(new DecodedMessage(original));
     }
 
     @Test
@@ -51,25 +53,25 @@ class NdjsonCodecTest {
     void decodesHandWrittenDataLine() {
         var line = "{\"type\":\"DATA\",\"stationId\":\"111311\",\"seq\":17,\"measuredAt\":\"2023-03-01T16:00:00\",\"pm10\":162,\"pm25\":null}";
 
-        assertThat(codec.decode(line)).isEqualTo(new DecodeResult.Decoded(
+        assertThat(codec.decode(line)).isEqualTo(new DecodedMessage(
                 new Data("111311", 17, LocalDateTime.of(2023, 3, 1, 16, 0), 162.0, null, null)));
     }
 
     @Test
     void brokenJsonIsMalformed() {
-        assertThat(codec.decode("{\"type\":\"DATA\",")).isInstanceOf(DecodeResult.Invalid.class)
+        assertThat(codec.decode("{\"type\":\"DATA\",")).isInstanceOf(InvalidMessage.class)
                 .extracting("reason").isEqualTo(RejectReason.MALFORMED);
     }
 
     @Test
     void unknownTypeIsSchemaViolation() {
-        assertThat(codec.decode("{\"type\":\"PING\"}")).isInstanceOf(DecodeResult.Invalid.class)
+        assertThat(codec.decode("{\"type\":\"PING\"}")).isInstanceOf(InvalidMessage.class)
                 .extracting("reason").isEqualTo(RejectReason.SCHEMA);
     }
 
     @Test
     void wrongFieldTypeIsSchemaViolation() {
-        assertThat(codec.decode("{\"type\":\"ACK\",\"seq\":\"seventeen\"}")).isInstanceOf(DecodeResult.Invalid.class)
+        assertThat(codec.decode("{\"type\":\"ACK\",\"seq\":\"seventeen\"}")).isInstanceOf(InvalidMessage.class)
                 .extracting("reason").isEqualTo(RejectReason.SCHEMA);
     }
 

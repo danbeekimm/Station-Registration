@@ -4,8 +4,9 @@ import com.exem.dust.domain.alert.AlertRule;
 import com.exem.dust.domain.maintenance.Equipment;
 import com.exem.dust.domain.maintenance.MaintenanceWindow;
 import com.exem.dust.domain.measurement.Pollutant;
+import com.exem.dust.report.dto.ConcentrationPeak;
+import com.exem.dust.report.dto.RuleStats;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -22,35 +23,13 @@ public record StationFeasibility(
         String stationCode,
         String stationName,
         int rowCount,
-        Map<Pollutant, Peak> peaks,
+        Map<Pollutant, ConcentrationPeak> peaks,
         Map<AlertRule, Integer> recordedAlerts,
         Map<AlertRule, RuleStats> ruleStats,
         Map<Equipment, List<MaintenanceWindow>> maintenanceWindows,
         Map<String, Long> missingRepresentations,
         int timeGaps,
         List<String> parserWarnings) {
-
-    /** 물질별 최댓값과 그 시각. */
-    public record Peak(double value, LocalDateTime at) {
-    }
-
-    /**
-     * @param hoursMeetingRule 기준 이상이 sustainedHours 이상 이어져 룰 조건이 충족된 시간 수
-     * @param longestStreak    기준 이상이 연속된 가장 긴 구간. 조건 미달(예: 1시간)이어도 기록해 "근접 미달"을 보여 준다
-     */
-    public record RuleStats(int hoursMeetingRule, Streak longestStreak) {
-    }
-
-    /** 기준 이상이 연속된 구간. 시작·종료 시각 포함. */
-    public record Streak(LocalDateTime start, LocalDateTime end, int hours) {
-
-        public static final Streak NONE = new Streak(null, null, 0);
-
-        /** 한 시간이라도 기준 이상이 있었는지. */
-        public boolean exists() {
-            return hours > 0;
-        }
-    }
 
     /** alert_log에 남을 총 건수. 시뮬레이터 재생 후 DB 건수와 같아야 한다. */
     public int totalRecordedAlerts() {

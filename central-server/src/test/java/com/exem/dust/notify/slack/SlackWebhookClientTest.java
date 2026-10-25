@@ -1,5 +1,8 @@
 package com.exem.dust.notify.slack;
 
+import com.exem.dust.notify.slack.dto.SendFailed;
+import com.exem.dust.notify.slack.dto.SendRateLimited;
+import com.exem.dust.notify.slack.dto.SendSucceeded;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -33,7 +36,7 @@ class SlackWebhookClientTest {
                 .andExpect(content().json("{\"text\":\"hi\"}"))
                 .andRespond(withSuccess("ok", MediaType.TEXT_PLAIN));
 
-        assertThat(client.send(URL, "{\"text\":\"hi\"}")).isEqualTo(new SendOutcome.Sent());
+        assertThat(client.send(URL, "{\"text\":\"hi\"}")).isEqualTo(new SendSucceeded());
         slack.verify();
     }
 
@@ -43,28 +46,28 @@ class SlackWebhookClientTest {
         headers.add("Retry-After", "7");
         slack.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS).headers(headers));
 
-        assertThat(client.send(URL, "{}")).isEqualTo(new SendOutcome.RateLimited(Duration.ofSeconds(7)));
+        assertThat(client.send(URL, "{}")).isEqualTo(new SendRateLimited(Duration.ofSeconds(7)));
     }
 
     @Test
     void tooManyRequestsWithoutHeaderFallsBackToDefault() {
         slack.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
 
-        assertThat(client.send(URL, "{}")).isEqualTo(new SendOutcome.RateLimited(Duration.ofSeconds(5)));
+        assertThat(client.send(URL, "{}")).isEqualTo(new SendRateLimited(Duration.ofSeconds(5)));
     }
 
     @Test
     void serverErrorIsFailedWithStatusAndBodyPreview() {
         slack.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR).body("internal\n  error"));
 
-        assertThat(client.send(URL, "{}")).isEqualTo(new SendOutcome.Failed("HTTP 500 internal error"));
+        assertThat(client.send(URL, "{}")).isEqualTo(new SendFailed("HTTP 500 internal error"));
     }
 
     @Test
     void clientErrorIsFailed() {
         slack.expect(requestTo(URL)).andRespond(withStatus(HttpStatus.NOT_FOUND).body("no_service"));
 
-        assertThat(client.send(URL, "{}")).isInstanceOfSatisfying(SendOutcome.Failed.class,
+        assertThat(client.send(URL, "{}")).isInstanceOfSatisfying(SendFailed.class,
                 failed -> assertThat(failed.error()).startsWith("HTTP 404"));
     }
 
@@ -72,6 +75,6 @@ class SlackWebhookClientTest {
     void connectionFailureIsFailedNotThrown() {
         var realClient = new SlackWebhookClient(RestClient.builder().build());
 
-        assertThat(realClient.send("http://127.0.0.1:1/unreachable", "{}")).isInstanceOf(SendOutcome.Failed.class);
+        assertThat(realClient.send("http://127.0.0.1:1/unreachable", "{}")).isInstanceOf(SendFailed.class);
     }
 }

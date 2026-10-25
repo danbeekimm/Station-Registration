@@ -1,6 +1,7 @@
 package com.exem.dust.tcp;
 
 import com.exem.dust.config.DustProperties;
+import com.exem.dust.config.dto.TcpProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.SmartLifecycle;
@@ -26,7 +27,7 @@ public class TcpServer implements SmartLifecycle {
 
     private static final Logger log = LoggerFactory.getLogger(TcpServer.class);
 
-    private final DustProperties.Tcp tcp;
+    private final TcpProperties tcp;
     private final ConnectionHandlerFactory handlerFactory;
     private final SessionRegistry sessions;
 
