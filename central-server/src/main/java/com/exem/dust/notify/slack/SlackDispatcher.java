@@ -4,8 +4,10 @@ import com.exem.dust.config.DustProperties;
 import com.exem.dust.dao.SlackOutboxDao;
 import com.exem.dust.domain.alert.PendingAlert;
 import com.exem.dust.domain.event.AlertIssuedEvent;
+import com.exem.dust.domain.event.SlackDeliveryEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -37,18 +39,20 @@ public class SlackDispatcher implements SmartLifecycle {
     private final SlackWebhookClient client;
     private final SlackMessageFormatter formatter;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
     private final LinkedBlockingQueue<Boolean> wakeSignals = new LinkedBlockingQueue<>();
 
     private Thread worker;
     private volatile boolean running;
 
     public SlackDispatcher(DustProperties properties, SlackOutboxDao outbox, SlackWebhookClient client,
-                           SlackMessageFormatter formatter, Clock clock) {
+                           SlackMessageFormatter formatter, Clock clock, ApplicationEventPublisher events) {
         this.slack = properties.slack();
         this.outbox = outbox;
         this.client = client;
         this.formatter = formatter;
         this.clock = clock;
+        this.events = events;
     }
 
     @Override
@@ -113,27 +117,31 @@ public class SlackDispatcher implements SmartLifecycle {
 
     private void deliver(PendingAlert pending, Instant now) {
         var alert = pending.alert();
-        switch (client.send(slack.webhookUrl(), formatter.format(pending))) {
+        var status = switch (client.send(slack.webhookUrl(), formatter.format(pending))) {
             case SendOutcome.Sent _ -> {
                 outbox.markSent(pending.id(), now);
                 log.info("Slack 전송 완료: [{}] {} {}", alert.stationId(), alert.rule().label(), alert.issuedAt());
+                yield "SENT";
             }
             case SendOutcome.RateLimited(var retryAfter) -> {
                 outbox.defer(pending.id(), now.plus(retryAfter));
                 log.warn("Slack 429, {}초 후 재시도: [{}] {}", retryAfter.toSeconds(), alert.stationId(), alert.issuedAt());
+                yield "RATE_LIMITED";
             }
             case SendOutcome.Failed(var error) -> {
                 int attempts = pending.attempts() + 1;
                 if (attempts >= slack.maxAttempts()) {
                     outbox.markFailed(pending.id(), attempts, error);
                     log.error("Slack 전송 포기({}회 실패): [{}] {} - {}", attempts, alert.stationId(), alert.issuedAt(), error);
-                } else {
-                    var backoff = Duration.ofSeconds(1L << (attempts - 1));  // 1초, 2초, 4초…
-                    outbox.scheduleRetry(pending.id(), attempts, now.plus(backoff), error);
-                    log.warn("Slack 전송 실패({}회), {}초 후 재시도: [{}] {} - {}", attempts, backoff.toSeconds(), alert.stationId(), alert.issuedAt(), error);
+                    yield "FAILED";
                 }
+                var backoff = Duration.ofSeconds(1L << (attempts - 1));  // 1초, 2초, 4초…
+                outbox.scheduleRetry(pending.id(), attempts, now.plus(backoff), error);
+                log.warn("Slack 전송 실패({}회), {}초 후 재시도: [{}] {} - {}", attempts, backoff.toSeconds(), alert.stationId(), alert.issuedAt(), error);
+                yield "RETRY";
             }
-        }
+        };
+        events.publishEvent(new SlackDeliveryEvent(alert.stationId(), status));
     }
 
     private static void sleepQuietly(Duration duration) {

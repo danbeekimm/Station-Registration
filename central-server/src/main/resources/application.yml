@@ -49,6 +49,15 @@ dust:
       name: 강서구
       token: ${STATION_TOKEN_111212:dev-token-gangseo-111212}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus   # 외부 툴 없이 curl로 확인. 그 외 엔드포인트는 열지 않는다
+  endpoint:
+    health:
+      show-details: never
+
 logging:
   level:
     com.exem.dust: INFO
