@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: dustwatch-central-server
+  datasource:
+    # 기본값은 docker-compose의 PostgreSQL. 환경변수나 --spring.datasource.*= 인자로 덮어쓴다.
+    url: ${DUST_DB_URL:jdbc:postgresql://localhost:5432/dust}
+    username: ${DUST_DB_USER:dust}
+    password: ${DUST_DB_PASSWORD:dust}
+    hikari:
+      pool-name: dust-pool
+      maximum-pool-size: 5
+
+logging:
+  level:
+    com.exem.dust: INFO

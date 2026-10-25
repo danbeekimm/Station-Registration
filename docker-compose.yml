@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: dustwatch-postgres
+    environment:
+      # 관리자 계정. 앱이 쓰는 롤 dust와 DB dust는 db/init.sql이 최초 기동 시 1회 만든다.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      # PostgreSQL 18 이미지는 PGDATA가 /var/lib/postgresql/18/docker 아래라 상위 디렉터리를 마운트해야 데이터가 보존된다.
+      - dustwatch-pgdata:/var/lib/postgresql
+      # initdb.d 스크립트는 데이터 디렉터리가 비어 있을 때만 실행되므로 재기동 시 기존 DB를 건드리지 않는다.
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dustwatch-pgdata:
