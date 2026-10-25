@@ -44,12 +44,15 @@
 ### 세 단계 실행
 
 ```bash
-# 1. PostgreSQL 18 기동 — 최초 1회 db/init.sql이 롤 dust와 DB dust를 만든다
+# 0. (선택) 포트가 겹치거나 Slack을 쓰려면 환경변수 파일을 만들어 값만 바꾼다. 없어도 기본값으로 실행된다
+cp .env.example .env
+
+# 1. PostgreSQL 18 기동 — 최초 1회 db/init.sql이 롤 dust와 DB dust를 만든다 (.env의 DUST_DB_PORT를 읽는다)
 docker compose up -d
 
 # 2. 중앙 서버 기동 — 기동마다 db/schema.sql을 실행해 테이블을 보장하고 측정소 3곳을 등록(upsert)한다
-./gradlew :central-server:bootRun
-#    Slack으로 보내려면:  SLACK_WEBHOOK_URL=https://hooks.slack.com/services/... ./gradlew :central-server:bootRun
+./run-server.sh                      # .env를 읽어 ./gradlew :central-server:bootRun 을 실행한다
+#    Slack으로 보내려면:  SLACK_WEBHOOK_URL=https://hooks.slack.com/services/... ./run-server.sh
 
 # 3. 다른 터미널에서 측정소 시뮬레이터 기동 — data/*.json 파일마다 프로세스 1개
 ./run-stations.sh          # 1초 간격 (원본 1시간 → 1초). 한 달치 744건에 약 12분 24초
@@ -101,14 +104,17 @@ docker compose down -v && docker compose up -d     # 볼륨까지 삭제. 재기
 ## 2. 설정
 
 모든 값은 `central-server/src/main/resources/application.yml`에 있고, **yml < 환경변수 < 실행 인자** 순으로 덮어쓴다.
+환경변수 전체 목록과 기본값은 저장소 루트의 **`.env.example`** 에 있다. `cp .env.example .env`로 복사해 값을 바꾸면 `docker compose`, `run-server.sh`, `run-stations.sh`가 모두 그 파일을 읽는다(`.env`는 커밋되지 않는다).
+평가 PC에서 5432·8080·9000이 이미 쓰이고 있으면 `.env`의 `DUST_DB_PORT`, `DUST_HTTP_PORT`, `DUST_TCP_PORT`만 바꾸면 된다. compose 포트 매핑, 서버 접속 URL, 대시보드 링크, 시뮬레이터 접속 주소가 함께 따라간다.
 
 | 설정 | 기본값 | 환경변수 | 설명 |
 |---|---|---|---|
 | `dust.slack.webhook-url` | (비어 있음) | `SLACK_WEBHOOK_URL` | 비어 있으면 전송을 건너뛰고 `slack_status=SKIPPED`로 기록 |
-| `dust.tcp.port` | 9000 | `DUST_TCP_PORT` | 측정소 수신 포트 |
+| `dust.tcp.port` | 9000 | `DUST_TCP_PORT` | 측정소 수신 포트. 시뮬레이터 기본 주소도 이 값을 따른다 |
 | `server.port` | 8080 | `DUST_HTTP_PORT` | 대시보드·SSE·Actuator |
-| `dust.slack.dashboard-url` | `http://localhost:8080` | `DUST_DASHBOARD_URL` | Slack 메시지의 대시보드 링크. 비우면 생략 |
-| `spring.datasource.url` 등 | compose의 `dust/dust@localhost:5432/dust` | `DUST_DB_URL`, `DUST_DB_USER`, `DUST_DB_PASSWORD` | |
+| `dust.slack.dashboard-url` | `http://localhost:${DUST_HTTP_PORT}` | `DUST_DASHBOARD_URL` | Slack 메시지의 대시보드 링크. 비우면 생략 |
+| PostgreSQL 호스트 포트 (compose) | 5432 | `DUST_DB_PORT` | 컨테이너 안은 항상 5432. 서버 접속 URL도 같은 변수를 쓴다 |
+| `spring.datasource.*` | `localhost:5432/dust`, `dust/dust` | `DUST_DB_HOST`, `DUST_DB_PORT`, `DUST_DB_NAME`, `DUST_DB_USER`, `DUST_DB_PASSWORD` (또는 `DUST_DB_URL`) | `registerStation`도 같은 변수를 읽는다 |
 | `dust.stations[*].token` | 개발용 토큰 | `STATION_TOKEN_<측정소코드>` | 기동 시 해시해 `station`에 저장 |
 | `dust.validation.*` | 농도 0~2000, 오존 0~1ppm, 미래 1일, 순서 오류 3회 | | DATA 검증 한계 |
 | `dust.tcp.hello-timeout` / `read-timeout` | 5s / 30s | | 접속 후 HELLO 대기, 메시지 간 최대 공백 |
@@ -485,6 +491,8 @@ dustwatch/
 ├ data/              노원구·중구·강서구(제공), 은평구(가상)
 ├ db/                init.sql(롤·DB), schema.sql(테이블)
 ├ docker-compose.yml postgres:18-alpine
+├ .env.example       환경변수 목록과 기본값. 복사해 .env로 쓴다
+├ run-server.sh      .env를 읽어 중앙 서버 기동
 ├ run-stations.sh    측정소 일괄 기동
 └ docs/DEVELOPMENT_PLAN.md  개발 계획과 설계 검토 기록
 ```

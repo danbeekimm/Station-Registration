@@ -5,9 +5,19 @@
 #   ./run-stations.sh 10                   10ms 간격(빠른 검증, 한 달치가 약 8초)
 #   ./run-stations.sh 1000 data/은평구.json  특정 파일만
 #
-# 환경변수: DUST_SERVER(기본 localhost:9000), STATION_TOKEN_<측정소코드>(토큰 덮어쓰기)
+# 환경변수(.env가 있으면 자동으로 읽는다): DUST_SERVER(기본 localhost:${DUST_TCP_PORT:-9000}), STATION_TOKEN_<측정소코드>
 set -uo pipefail
 cd "$(dirname "$0")"
+
+# .env 파일의 값은 이미 export된 환경변수보다 우선하지 않는다(쉘에서 준 값이 이긴다)
+if [ -f .env ]; then
+  while IFS= read -r line; do
+    line="${line%%#*}"; line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "$line" || "$line" != *=* ]] && continue
+    key="${line%%=*}"; value="${line#*=}"
+    [ -z "${!key:-}" ] && export "$key=$value"
+  done < .env
+fi
 
 INTERVAL_MS="${1:-1000}"
 shift || true
@@ -15,7 +25,7 @@ FILES=("$@")
 if [ ${#FILES[@]} -eq 0 ]; then
   FILES=(data/*.json)
 fi
-SERVER="${DUST_SERVER:-localhost:9000}"
+SERVER="${DUST_SERVER:-localhost:${DUST_TCP_PORT:-9000}}"
 
 # 개발용 토큰. central-server의 application.yml(dust.stations 시드)과 같은 값이며 의도적으로 저장소에 둔다.
 # 은평구(111191)는 서버 시드에 없어 처음 실행하면 UNKNOWN_STATION으로 거부된다.

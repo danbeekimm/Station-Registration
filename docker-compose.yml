@@ -7,7 +7,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      # 호스트 포트는 .env의 DUST_DB_PORT로 바꿀 수 있다(기본 5432). 컨테이너 안은 항상 5432
+      - "${DUST_DB_PORT:-5432}:5432"
     volumes:
       # PostgreSQL 18 이미지는 PGDATA가 /var/lib/postgresql/18/docker 아래라 상위 디렉터리를 마운트해야 데이터가 보존된다.
       - dustwatch-pgdata:/var/lib/postgresql

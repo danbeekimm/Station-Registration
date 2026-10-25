@@ -13,7 +13,7 @@ import java.util.Map;
  * <pre>
  *   ./gradlew registerStation --code=111191 --name=은평구 --token=dev-token-eunpyeong-111191
  * </pre>
- * DB 접속 정보는 서버와 같은 환경변수(DUST_DB_URL, DUST_DB_USER, DUST_DB_PASSWORD)를 쓴다.
+ * DB 접속 정보는 서버와 같은 환경변수(DUST_DB_HOST·DUST_DB_PORT·DUST_DB_NAME 또는 DUST_DB_URL, DUST_DB_USER, DUST_DB_PASSWORD)를 쓴다.
  */
 public final class RegisterStationCommand {
 
@@ -34,7 +34,9 @@ public final class RegisterStationCommand {
         var name = require(options, "name");
         var token = require(options, "token");
 
-        var url = envOrDefault("DUST_DB_URL", "jdbc:postgresql://localhost:5432/dust");
+        // 서버의 application.yml과 같은 규칙: 전체 URL이 있으면 그것을, 없으면 호스트·포트·DB명을 조합한다
+        var url = envOrDefault("DUST_DB_URL", "jdbc:postgresql://%s:%s/%s".formatted(
+                envOrDefault("DUST_DB_HOST", "localhost"), envOrDefault("DUST_DB_PORT", "5432"), envOrDefault("DUST_DB_NAME", "dust")));
         var user = envOrDefault("DUST_DB_USER", "dust");
         var password = envOrDefault("DUST_DB_PASSWORD", "dust");
 

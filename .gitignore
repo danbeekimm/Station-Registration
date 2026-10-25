@@ -12,8 +12,9 @@ out/
 # OS
 .DS_Store
 
-# 로컬 전용 설정. 실제 Slack Webhook URL이나 개인 토큰은 여기에만 두고 커밋하지 않는다.
+# 로컬 전용 설정. 실제 Slack Webhook URL이나 개인 토큰은 여기에만 두고 커밋하지 않는다. .env.example은 템플릿이라 커밋한다.
 application-local.yml
 *.local.yml
 .env
 .env.*
+!.env.example

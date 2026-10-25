@@ -7,8 +7,8 @@ spring:
   thymeleaf:
     cache: false
   datasource:
-    # 기본값은 docker-compose의 PostgreSQL. 환경변수나 --spring.datasource.*= 인자로 덮어쓴다.
-    url: ${DUST_DB_URL:jdbc:postgresql://localhost:5432/dust}
+    # 기본값은 docker-compose의 PostgreSQL. 호스트·포트·DB명은 각각 환경변수로 바꾸고, 전체 URL은 DUST_DB_URL로 덮어쓸 수 있다.
+    url: ${DUST_DB_URL:jdbc:postgresql://${DUST_DB_HOST:localhost}:${DUST_DB_PORT:5432}/${DUST_DB_NAME:dust}}
     username: ${DUST_DB_USER:dust}
     password: ${DUST_DB_PASSWORD:dust}
     hikari:
@@ -34,7 +34,7 @@ dust:
     read-timeout: 5s
     max-attempts: 3          # 5xx·타임아웃 재시도 횟수. 초과하면 FAILED. 429는 Retry-After만큼 미루고 횟수에 세지 않음
     send-interval: 1s        # Incoming Webhook의 초당 1건 제한을 디스패처 주기로 지킴
-    dashboard-url: ${DUST_DASHBOARD_URL:http://localhost:8080}   # Slack 메시지의 대시보드 링크. 비우면 링크 줄 생략
+    dashboard-url: ${DUST_DASHBOARD_URL:http://localhost:${DUST_HTTP_PORT:8080}}   # Slack 메시지의 대시보드 링크. 비우면 링크 줄 생략
   # 기동 시 station 테이블에 upsert하는 초기 측정소. 토큰은 해시로만 저장된다.
   # 아래 기본 토큰은 개발·평가용으로 의도적으로 저장소에 포함했으며 run-stations.sh의 기본값과 같다.
   # 운영이라면 STATION_TOKEN_<코드> 환경변수로 덮어쓴다. 추가 측정소는 registerStation 태스크로 DB에 직접 등록한다.
