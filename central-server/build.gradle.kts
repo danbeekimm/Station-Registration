@@ -70,3 +70,13 @@ tasks.register<RegisterStationTask>("registerStation") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass = "com.exem.dust.admin.RegisterStationCommand"
 }
+
+// 발령 가능성 검토. 서버 없이 데이터 파일만 읽어 Markdown을 출력한다.
+//   ./gradlew -q feasibility
+tasks.register<JavaExec>("feasibility") {
+    group = "dustwatch"
+    description = "제공 데이터로 경보 등급별 발령 가능성을 계산해 Markdown으로 출력한다"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "com.exem.dust.report.FeasibilityReport"
+    workingDir = rootProject.projectDir
+}

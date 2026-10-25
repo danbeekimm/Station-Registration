@@ -33,7 +33,7 @@ public class SlackMessageFormatter {
         var rule = alert.rule();
         var headline = "%s [%s · %d등급] %s(%s)".formatted(emoji(rule.grade()), rule.label(), rule.grade(), pending.stationName(), alert.stationId());
         var detail = "측정 시각 %s  |  %s %s %s  |  %d시간 연속 기준 이상".formatted(
-                ISSUED_AT.format(alert.issuedAt()), rule.pollutant(), formatValue(alert.triggerValue()), rule.pollutant().unit(), alert.sustainedHours());
+                ISSUED_AT.format(alert.issuedAt()), rule.pollutant().label(), formatValue(alert.triggerValue()), rule.pollutant().unit(), alert.sustainedHours());
         var body = new StringBuilder("*").append(headline).append("*\n").append(detail);
         if (dashboardUrl != null && !dashboardUrl.isBlank()) {
             body.append("\n대시보드 → ").append(dashboardUrl).append("/#").append(alert.stationId());
