@@ -11,12 +11,14 @@ import com.exem.dust.common.protocol.Reject;
 import com.exem.dust.common.protocol.RejectReason;
 import com.exem.dust.common.protocol.Welcome;
 import com.exem.dust.config.DustProperties;
+import com.exem.dust.domain.reject.RawMessageMasker;
 import com.exem.dust.domain.station.RegisteredStation;
 import com.exem.dust.domain.station.Station;
 import com.exem.dust.service.AuthResult;
 import com.exem.dust.service.IngestResult;
 import com.exem.dust.service.IngestService;
 import com.exem.dust.service.MessageValidator;
+import com.exem.dust.service.RejectRecorder;
 import com.exem.dust.service.StationAuthService;
 import com.exem.dust.service.StationStateLoader;
 import org.slf4j.Logger;
@@ -41,12 +43,14 @@ final class ConnectionHandler implements Runnable {
 
     private final Socket socket;
     private final String remoteAddress;
+    private final String remoteIp;
     private final DustProperties.Tcp tcp;
     private final NdjsonCodec codec;
     private final StationAuthService authService;
     private final StationStateLoader stateLoader;
     private final MessageValidator validator;
     private final IngestService ingestService;
+    private final RejectRecorder rejectRecorder;
     private final SessionRegistry sessions;
 
     private RegisteredStation station;
@@ -56,15 +60,17 @@ final class ConnectionHandler implements Runnable {
 
     ConnectionHandler(Socket socket, DustProperties.Tcp tcp, NdjsonCodec codec, StationAuthService authService,
                       StationStateLoader stateLoader, MessageValidator validator, IngestService ingestService,
-                      SessionRegistry sessions) {
+                      RejectRecorder rejectRecorder, SessionRegistry sessions) {
         this.socket = socket;
         this.remoteAddress = socket.getRemoteSocketAddress().toString();
+        this.remoteIp = socket.getInetAddress().getHostAddress();
         this.tcp = tcp;
         this.codec = codec;
         this.authService = authService;
         this.stateLoader = stateLoader;
         this.validator = validator;
         this.ingestService = ingestService;
+        this.rejectRecorder = rejectRecorder;
         this.sessions = sessions;
     }
 
@@ -104,23 +110,23 @@ final class ConnectionHandler implements Runnable {
         try {
             firstLine = reader.readLine();
         } catch (SocketTimeoutException e) {
-            rejectAndLog(writer, RejectReason.HELLO_TIMEOUT, "접속 후 %d초 안에 HELLO가 필요".formatted(tcp.helloTimeout().toSeconds()), null);
+            rejectAndLog(writer, RejectReason.HELLO_TIMEOUT, "접속 후 %d초 안에 HELLO가 필요".formatted(tcp.helloTimeout().toSeconds()), null, null);
             return false;
         }
         return switch (firstLine) {
             case LineRead.EndOfStream _ -> false;
             case LineRead.TooLong _ -> {
-                rejectAndLog(writer, RejectReason.HELLO_EXPECTED, "메시지가 너무 깁니다", null);
+                rejectAndLog(writer, RejectReason.HELLO_EXPECTED, "메시지가 너무 깁니다", null, null);
                 yield false;
             }
             case LineRead.Line(String text) -> switch (codec.decode(text)) {
                 case DecodeResult.Invalid(var reason, var detail) -> {
-                    rejectAndLog(writer, RejectReason.HELLO_EXPECTED, detail + " (" + reason + ")", text);
+                    rejectAndLog(writer, RejectReason.HELLO_EXPECTED, detail + " (" + reason + ")", null, text);
                     yield false;
                 }
                 case DecodeResult.Decoded(Hello hello) -> authenticate(hello, writer);
                 case DecodeResult.Decoded(Message other) -> {
-                    rejectAndLog(writer, RejectReason.HELLO_EXPECTED, "첫 메시지는 HELLO여야 합니다", text);
+                    rejectAndLog(writer, RejectReason.HELLO_EXPECTED, "첫 메시지는 HELLO여야 합니다", null, text);
                     yield false;
                 }
             };
@@ -130,7 +136,8 @@ final class ConnectionHandler implements Runnable {
     private boolean authenticate(Hello hello, MessageWriter writer) throws IOException {
         return switch (authService.authenticate(hello)) {
             case AuthResult.Rejected(var reason, var detail) -> {
-                rejectAndLog(writer, reason, detail, hello.toString());
+                // Hello.toString()은 토큰을 가린 표현이라 원문 대신 저장해도 안전하다
+                rejectAndLog(writer, reason, detail, hello.stationId(), hello.toString());
                 yield false;
             }
             case AuthResult.Authenticated(var authenticated) -> {
@@ -158,7 +165,7 @@ final class ConnectionHandler implements Runnable {
                     log.info("[{}] 측정소가 연결을 닫음", describe());
                     return;
                 }
-                case LineRead.TooLong _ -> writer.send(new Reject(RejectReason.MALFORMED, "메시지가 너무 깁니다"));
+                    case LineRead.TooLong _ -> rejectAndLog(writer, RejectReason.MALFORMED, "메시지가 너무 깁니다", station.id(), null);
                 case LineRead.Line(String text) -> {
                     if (!handle(text, writer)) {
                         return;
@@ -172,28 +179,26 @@ final class ConnectionHandler implements Runnable {
     private boolean handle(String text, MessageWriter writer) throws IOException {
         return switch (codec.decode(text)) {
             case DecodeResult.Invalid(var reason, var detail) -> {
-                log.warn("[{}] 거부 {}: {}", describe(), reason, detail);
-                writer.send(new Reject(reason, detail));
+                rejectAndLog(writer, reason, detail, station.id(), text);
                 yield true;
             }
-            case DecodeResult.Decoded(Data data) -> handleData(data, writer);
+            case DecodeResult.Decoded(Data data) -> handleData(data, writer, text);
             case DecodeResult.Decoded(Bye _) -> {
                 log.info("[{}] BYE 수신, 정상 종료", describe());
                 yield false;
             }
             case DecodeResult.Decoded(Message other) -> {
-                writer.send(new Reject(RejectReason.UNEXPECTED_MESSAGE, "인증 후에는 DATA와 BYE만 받습니다"));
+                rejectAndLog(writer, RejectReason.UNEXPECTED_MESSAGE, "인증 후에는 DATA와 BYE만 받습니다", station.id(), text);
                 yield true;
             }
         };
     }
 
-    private boolean handleData(Data data, MessageWriter writer) throws IOException {
+    private boolean handleData(Data data, MessageWriter writer, String rawText) throws IOException {
         var violation = validator.validate(data, station.id());
         if (violation.isPresent()) {
             var reject = violation.get();
-            log.warn("[{}] seq={} 거부 {}: {}", describe(), data.seq(), reject.reason(), reject.detail());
-            writer.send(reject);
+            rejectAndLog(writer, reject.reason(), "seq=%d %s".formatted(data.seq(), reject.detail()), station.id(), rawText);
             if (reject.reason().closesConnection()) {
                 return false;
             }
@@ -222,9 +227,12 @@ final class ConnectionHandler implements Runnable {
         return true;
     }
 
-    private void rejectAndLog(MessageWriter writer, RejectReason reason, String detail, String rawMessage) throws IOException {
-        log.warn("[{}] 접속 거부 {}: {}", describe(), reason, detail);
+    /** 거부 응답을 보내고 서버 로그와 connection_reject_log에 남긴다. 원문의 토큰 값은 가려서 저장한다. */
+    private void rejectAndLog(MessageWriter writer, RejectReason reason, String detail, String claimedStationId,
+                              String rawMessage) throws IOException {
+        log.warn("[{}] 거부 {}: {}", describe(), reason, detail);
         writer.send(new Reject(reason, detail));
+        rejectRecorder.record(remoteIp, claimedStationId, reason, RawMessageMasker.maskToken(rawMessage));
     }
 
     private String describe() {

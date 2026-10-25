@@ -4,6 +4,7 @@ import com.exem.dust.common.codec.NdjsonCodec;
 import com.exem.dust.config.DustProperties;
 import com.exem.dust.service.IngestService;
 import com.exem.dust.service.MessageValidator;
+import com.exem.dust.service.RejectRecorder;
 import com.exem.dust.service.StationAuthService;
 import com.exem.dust.service.StationStateLoader;
 import org.springframework.stereotype.Component;
@@ -20,19 +21,23 @@ public class ConnectionHandlerFactory {
     private final StationStateLoader stateLoader;
     private final MessageValidator validator;
     private final IngestService ingestService;
+    private final RejectRecorder rejectRecorder;
     private final SessionRegistry sessions;
 
     public ConnectionHandlerFactory(DustProperties properties, StationAuthService authService, StationStateLoader stateLoader,
-                                    MessageValidator validator, IngestService ingestService, SessionRegistry sessions) {
+                                    MessageValidator validator, IngestService ingestService, RejectRecorder rejectRecorder,
+                                    SessionRegistry sessions) {
         this.properties = properties;
         this.authService = authService;
         this.stateLoader = stateLoader;
         this.validator = validator;
         this.ingestService = ingestService;
+        this.rejectRecorder = rejectRecorder;
         this.sessions = sessions;
     }
 
     ConnectionHandler create(Socket socket) {
-        return new ConnectionHandler(socket, properties.tcp(), codec, authService, stateLoader, validator, ingestService, sessions);
+        return new ConnectionHandler(socket, properties.tcp(), codec, authService, stateLoader, validator, ingestService,
+                rejectRecorder, sessions);
     }
 }

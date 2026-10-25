@@ -41,3 +41,31 @@ tasks.processResources {
 tasks.test {
     useJUnitPlatform()
 }
+
+// 운영 중 측정소 등록. 서버 재기동 없이 station 테이블에 직접 upsert한다.
+//   ./gradlew registerStation --code=111191 --name=은평구 --token=<토큰>
+abstract class RegisterStationTask : JavaExec() {
+    @get:Input
+    @get:Option(option = "code", description = "측정소 코드")
+    abstract val code: Property<String>
+
+    @get:Input
+    @get:Option(option = "name", description = "측정소 이름")
+    abstract val stationName: Property<String>
+
+    @get:Input
+    @get:Option(option = "token", description = "측정소 인증 토큰(평문). DB에는 해시만 저장된다")
+    abstract val token: Property<String>
+
+    override fun exec() {
+        args("--code=${code.get()}", "--name=${stationName.get()}", "--token=${token.get()}")
+        super.exec()
+    }
+}
+
+tasks.register<RegisterStationTask>("registerStation") {
+    group = "dustwatch"
+    description = "측정소를 station 테이블에 등록한다 (--code, --name, --token)"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "com.exem.dust.admin.RegisterStationCommand"
+}
