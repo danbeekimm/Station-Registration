@@ -27,8 +27,8 @@ if [ ${#FILES[@]} -eq 0 ]; then
 fi
 SERVER="${DUST_SERVER:-localhost:${DUST_TCP_PORT:-9000}}"
 
-# 개발용 토큰. central-server의 application.yml(dust.stations 시드)과 같은 값이며 의도적으로 저장소에 둔다.
-# 은평구(111191)는 서버 시드에 없어 처음 실행하면 UNKNOWN_STATION으로 거부된다.
+# 개발용 토큰. db/seed.sql의 초기 측정소와 같은 값이며 의도적으로 저장소에 둔다.
+# 은평구(111191)는 db/seed.sql에 없어 처음 실행하면 UNKNOWN_STATION으로 거부된다.
 # registerStation으로 등록한 뒤 다시 실행하면 서버 수정·재기동 없이 수신된다.
 export STATION_TOKEN_111311="${STATION_TOKEN_111311:-dev-token-nowon-111311}"
 export STATION_TOKEN_111121="${STATION_TOKEN_111121:-dev-token-junggu-111121}"

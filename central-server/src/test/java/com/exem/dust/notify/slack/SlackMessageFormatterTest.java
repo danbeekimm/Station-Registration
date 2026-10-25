@@ -18,8 +18,7 @@ class SlackMessageFormatterTest {
     private static DustProperties propertiesWithDashboard(String dashboardUrl) {
         return new DustProperties(null, null,
                 new SlackProperties("https://hooks.slack.test/x", Duration.ofSeconds(3), Duration.ofSeconds(5), 3,
-                        Duration.ofSeconds(1), true, dashboardUrl),
-                List.of());
+                        Duration.ofSeconds(1), true, dashboardUrl));
     }
 
     @Test

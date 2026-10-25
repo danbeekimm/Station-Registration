@@ -50,7 +50,7 @@ cp .env.example .env
 # 1. PostgreSQL 18 기동 — 최초 1회 db/init.sql이 롤 dust와 DB dust를 만든다 (.env의 DUST_DB_PORT를 읽는다)
 docker compose up -d
 
-# 2. 중앙 서버 기동 — 기동마다 db/schema.sql을 실행해 테이블을 보장하고 측정소 3곳을 등록(upsert)한다
+# 2. 중앙 서버 기동 — 기동마다 db/schema.sql(테이블 보장)과 db/seed.sql(측정소 3곳, 없는 것만 등록)을 실행한다
 ./run-server.sh                      # .env를 읽어 ./gradlew :central-server:bootRun 을 실행한다
 #    Slack으로 보내려면:  SLACK_WEBHOOK_URL=https://hooks.slack.com/services/... ./run-server.sh
 
@@ -115,15 +115,16 @@ docker compose down -v && docker compose up -d     # 볼륨까지 삭제. 재기
 | `dust.slack.dashboard-url` | `http://localhost:${DUST_HTTP_PORT}` | `DUST_DASHBOARD_URL` | Slack 메시지의 대시보드 링크. 비우면 생략 |
 | PostgreSQL 호스트 포트 (compose) | 5432 | `DUST_DB_PORT` | 컨테이너 안은 항상 5432. 서버 접속 URL도 같은 변수를 쓴다 |
 | `spring.datasource.*` | `localhost:5432/dust`, `dust/dust` | `DUST_DB_HOST`, `DUST_DB_PORT`, `DUST_DB_NAME`, `DUST_DB_USER`, `DUST_DB_PASSWORD` (또는 `DUST_DB_URL`) | `registerStation`도 같은 변수를 읽는다 |
-| `dust.stations[*].token` | 개발용 토큰 | `STATION_TOKEN_<측정소코드>` | 기동 시 해시해 `station`에 저장 |
+| 측정소 초기 등록 | `db/seed.sql`의 3곳 | — | 기동 시 없는 측정소만 추가. 이후 추가·토큰 변경은 `registerStation`(DB) |
+| 시뮬레이터 토큰 | 개발용 토큰 | `STATION_TOKEN_<측정소코드>` | `run-stations.sh`가 HELLO에 실어 보내는 값. 서버 쪽 토큰을 바꿨으면 같이 맞춘다 |
 | `dust.validation.*` | 농도 0~2000, 오존 0~1ppm, 미래 1일, 순서 오류 3회 | | DATA 검증 한계 |
 | `dust.tcp.hello-timeout` / `read-timeout` | 5s / 30s | | 접속 후 HELLO 대기, 메시지 간 최대 공백 |
 
 실행 인자 예: `./gradlew :central-server:bootRun --args='--dust.slack.webhook-url=https://hooks.slack.com/services/...'`
 
 **개발용 토큰은 의도적으로 저장소에 포함했다.** 평가자가 설정 없이 세 줄로 실행할 수 있어야 하기 때문이다.
-`application.yml`의 `dust.stations` 시드와 `run-stations.sh`의 기본값이 같은 토큰을 쓰며, DB에는 평문이 아닌 `SHA-256(측정소코드:토큰)` 해시만 저장된다.
-운영이라면 `STATION_TOKEN_<코드>` 환경변수로 덮어쓰고, 실제 Webhook URL은 `.gitignore`에 포함된 `application-local.yml`이나 환경변수에만 둔다.
+`db/seed.sql`과 `run-stations.sh`의 기본값이 같은 토큰을 쓰며, DB에는 평문이 아닌 `SHA-256(측정소코드:토큰)` 해시만 저장된다(SQL의 `sha256()`과 Java `TokenHasher`가 같은 값을 내는 것을 테스트로 고정).
+운영이라면 서버 쪽 토큰은 `registerStation`으로 바꾸고 시뮬레이터 쪽은 `STATION_TOKEN_<코드>` 환경변수로 맞추며, 실제 Webhook URL은 `.gitignore`에 포함된 `.env`나 환경변수에만 둔다.
 
 ---
 
@@ -308,7 +309,7 @@ HELLO 인증 직후 그 측정소의 저장된 측정값 전체(최대 744행)�
 
 `data/은평구.json`은 이 절차를 보여 주기 위해 만든 **가상 데이터**다(세 측정소 시간별 평균에 ±10% 잡음, 점검 구간 2개. 코드 111191은 가상).
 `./gradlew makeMockStation --code=111191 --name=은평구`로 다시 만들 수 있고, 시드가 고정된 MT19937을 쓰므로 커밋된 파일과 바이트 단위로 같은 결과가 나온다(테스트로 고정).
-서버 시드에 은평구가 없으므로 처음 실행하면 거부되고, 등록 후 다시 실행하면 수신된다.
+`db/seed.sql`에 은평구가 없으므로 처음 실행하면 거부되고, 등록 후 다시 실행하면 수신된다.
 
 ```bash
 ./run-stations.sh 10                       # 은평구만 "UNKNOWN_STATION" 거부, 종료 코드 2
@@ -417,7 +418,7 @@ Prometheus가 이 엔드포인트를 스크랩하면 Grafana 패널로 바로 �
 
 - 측정 시각(논리 시간)은 시간대 없는 `TIMESTAMP`, 서버가 찍는 시각(`received_at`, `slack_sent_at` 등)은 `TIMESTAMPTZ`다.
 - enum은 `CREATE TYPE` 대신 `VARCHAR + CHECK`로 두어 변경·JDBC 매핑을 단순하게 했다.
-- 스크립트: `db/init.sql`(롤·DB, 재실행 안전, compose가 최초 1회 자동 실행)과 `db/schema.sql`(테이블·인덱스, `IF NOT EXISTS`만 사용). 서버는 기동마다 `schema.sql`을 실행하고 테이블 5개가 있는지 확인한 뒤 수신을 시작한다. 두 번째 기동부터는 아무것도 바꾸지 않으며 DROP 문은 없다.
+- 스크립트 세 개: `db/init.sql`(롤·DB, 재실행 안전, compose가 최초 1회 자동 실행), `db/schema.sql`(테이블·인덱스, `IF NOT EXISTS`만 사용), `db/seed.sql`(초기 측정소 3곳, `ON CONFLICT DO NOTHING`). 서버는 기동마다 `schema.sql`을 실행해 테이블 5개를 확인하고 `seed.sql`로 없는 측정소만 등록한 뒤 수신을 시작한다. 두 번째 기동부터는 아무것도 바꾸지 않으며 DROP 문은 없다. 설정 파일에는 데이터를 두지 않는다.
 - PostgreSQL 18 이미지는 데이터 디렉터리가 `/var/lib/postgresql/18/docker`로 바뀌어 compose 볼륨을 `/var/lib/postgresql`에 마운트한다. 예전처럼 `/var/lib/postgresql/data`에 걸면 컨테이너 재생성 시 데이터가 사라진다.
 
 ---
@@ -454,7 +455,7 @@ Docker가 없는 환경에서는 Testcontainers 기반 테스트가 **자동으�
 | 시각 누락 | 끊김 | "연속 2시간" 정의 유지 |
 | 점검 기록 단위 | 연속 null 1구간 = 1행, 장비별 분리 | 점검은 사건 단위가 자연스럽고 요구사항이 장비를 구분함. 시간별 원본은 `measurement`에 남음 |
 | 오존 주의보 | 룰과 `o3` 필드까지 구현, 데이터 부재로 발령 불가 명시 | "각 경보가 실제 발령 가능한지 검토" 항목의 답 |
-| 측정소 등록 | 자동 등록 없음, DB가 단일 출처, `registerStation` 명령 | 인증의 의미 유지. 서버 수정·재기동 없이 추가 |
+| 측정소 등록 | 자동 등록 없음. DB가 단일 출처이고 초기 3곳은 `db/seed.sql`이 없을 때만 넣으며 이후는 `registerStation` | 인증의 의미 유지. 설정 파일에 데이터를 두지 않고, 운영 중 변경이 재기동으로 되돌아가지 않음 |
 | 상태 복원 | 저장된 측정값 전체 재생 | 마지막 몇 건만으로는 지속 시간과 룰별 카운터를 정확히 못 살림. 744행이라 비용 미미 |
 | Slack 전송 | `alert_log` PENDING 행을 outbox로, 단일 스레드 1건/초 | 외부 장애가 수신을 막지 않고 재기동에도 유실 없음 |
 | 중복 수신 | `(station_id, measured_at)` UNIQUE로 멱등 | 재전송·재접속 시 중복 경보 방지 |
@@ -476,8 +477,8 @@ dustwatch/
 │     ├ domain/      Station(판정 상태), AlertRule, Measurement, MaintenanceWindow, TokenHasher — Spring 의존 없음
 │     ├ service/
 │     │  ├ ingest/   IngestService(수신 1건 = 트랜잭션 1개), MessageValidator, StationStateLoader
-│     │  └ auth/     StationAuthService, StationSeeder, RejectRecorder
-│     ├ dao/         DAO 인터페이스 5개 + jdbc/ 구현(JdbcClient), SchemaInitializer
+│     │  └ auth/     StationAuthService, RejectRecorder
+│     ├ dao/         DAO 인터페이스 5개 + jdbc/ 구현(JdbcClient), DatabaseInitializer(schema.sql·seed.sql 실행)
 │     ├ tcp/         TcpServer, ConnectionHandler(세션 상태 기계), SessionRegistry
 │     │  └ framing/  BoundedLineReader(4KB 상한 줄 읽기), MessageWriter
 │     ├ notify/slack/ SlackDispatcher(outbox), SlackWebhookClient, SlackMessageFormatter
@@ -489,7 +490,7 @@ dustwatch/
 │     └ config/      DustProperties(dust.*), SlackConfig, TimeConfig
 │     record는 각 패키지의 dto/ 하위에 둔다(DecodeResult·IngestResult·AuthResult·SendOutcome·LineRead·MaintenanceChange와 구현 record, 설정·통계 record). SSE 본문은 web/payload/
 ├ data/              노원구·중구·강서구(제공), 은평구(가상)
-├ db/                init.sql(롤·DB), schema.sql(테이블)
+├ db/                init.sql(롤·DB), schema.sql(테이블), seed.sql(초기 측정소 3곳)
 ├ docker-compose.yml postgres:18-alpine
 ├ .env.example       환경변수 목록과 기본값. 복사해 .env로 쓴다
 ├ run-server.sh      .env를 읽어 중앙 서버 기동

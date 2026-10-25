@@ -40,7 +40,7 @@ public class JdbcStationDao implements StationDao {
                 .list();
     }
 
-    /** 있으면 이름·해시를 갱신하고 없으면 등록한다. 기동 시드와 registerStation이 같은 문장을 쓴다. */
+    /** 있으면 이름·해시를 갱신하고 없으면 등록한다. registerStation이 쓴다. 초기 시드(db/seed.sql)는 DO NOTHING이라 기존 행을 바꾸지 않는다. */
     @Override
     public void upsert(RegisteredStation station) {
         jdbc.sql("""

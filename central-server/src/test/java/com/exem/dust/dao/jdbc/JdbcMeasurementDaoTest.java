@@ -3,6 +3,7 @@ package com.exem.dust.dao.jdbc;
 import com.exem.dust.dao.MeasurementDao;
 import com.exem.dust.dao.StationDao;
 import com.exem.dust.domain.measurement.Measurement;
+import com.exem.dust.domain.station.TokenHasher;
 import com.exem.dust.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ class JdbcMeasurementDaoTest extends IntegrationTestSupport {
 
         assertThat(nowon.name()).isEqualTo("노원구");
         assertThat(nowon.tokenHash()).hasSize(64).doesNotContain("dev-token");
+        assertThat(TokenHasher.matches(nowon.tokenHash(), nowon.id(), "dev-token-nowon-111311")).isTrue();
         assertThat(stationDao.findAll()).extracting("id").contains("111311", "111121", "111212");
     }
 

@@ -35,19 +35,6 @@ dust:
     max-attempts: 3          # 5xx·타임아웃 재시도 횟수. 초과하면 FAILED. 429는 Retry-After만큼 미루고 횟수에 세지 않음
     send-interval: 1s        # Incoming Webhook의 초당 1건 제한을 디스패처 주기로 지킴
     dashboard-url: ${DUST_DASHBOARD_URL:http://localhost:${DUST_HTTP_PORT:8080}}   # Slack 메시지의 대시보드 링크. 비우면 링크 줄 생략
-  # 기동 시 station 테이블에 upsert하는 초기 측정소. 토큰은 해시로만 저장된다.
-  # 아래 기본 토큰은 개발·평가용으로 의도적으로 저장소에 포함했으며 run-stations.sh의 기본값과 같다.
-  # 운영이라면 STATION_TOKEN_<코드> 환경변수로 덮어쓴다. 추가 측정소는 registerStation 태스크로 DB에 직접 등록한다.
-  stations:
-    - code: "111311"
-      name: 노원구
-      token: ${STATION_TOKEN_111311:dev-token-nowon-111311}
-    - code: "111121"
-      name: 중구
-      token: ${STATION_TOKEN_111121:dev-token-junggu-111121}
-    - code: "111212"
-      name: 강서구
-      token: ${STATION_TOKEN_111212:dev-token-gangseo-111212}
 
 management:
   endpoints:
