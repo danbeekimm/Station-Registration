@@ -5,6 +5,8 @@ import com.exem.dust.dao.AlertDao;
 import com.exem.dust.dao.MaintenanceDao;
 import com.exem.dust.dao.MeasurementDao;
 import com.exem.dust.domain.event.AlertIssuedEvent;
+import com.exem.dust.domain.event.MaintenanceChangedEvent;
+import com.exem.dust.domain.event.MeasurementStoredEvent;
 import com.exem.dust.domain.maintenance.MaintenanceChange;
 import com.exem.dust.domain.measurement.Measurement;
 import com.exem.dust.domain.station.Station;
@@ -58,7 +60,9 @@ public class IngestService {
         for (var change : evaluation.maintenanceChanges()) {
             maintenanceDao.upsert(change.window());
             logMaintenance(change);
+            events.publishEvent(new MaintenanceChangedEvent(change));
         }
+        events.publishEvent(new MeasurementStoredEvent(measurement));
         return new IngestResult.Stored(measurement, evaluation);
     }
 
