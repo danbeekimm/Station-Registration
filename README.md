@@ -38,8 +38,8 @@
 ### 사전 준비
 
 - Docker (PostgreSQL 컨테이너와 통합 테스트용).
-- JDK 17 이상 (Gradle 실행용). 컴파일·실행에 쓰는 **JDK 25는 Gradle 툴체인이 자동으로 내려받는다** (foojay resolver)
-- Windows에서는 **Git Bash**로 아래 스크립트를 실행한다. 스크립트가 콘솔을 UTF-8(코드 페이지 65001)로 바꿔 한글 출력이 깨지지 않게 하고, JDK 24 이상에서 Gradle이 먼저 찍는 네이티브 접근 WARNING도 끈다. `./gradlew`를 직접 쓸 때 한글이 깨지면 먼저 `chcp 65001`을 실행한다
+- **JDK 25** (JAVA_HOME 또는 PATH). Gradle·서버·시뮬레이터가 모두 이 JDK로 실행된다
+- Windows에서는 **cmd·PowerShell·Git Bash 어느 터미널이든** 된다. cmd·PowerShell은 `.\run-server.cmd`·`.\run-stations.cmd`, Git Bash는 `./run-server.sh`·`./run-stations.sh`를 쓴다(인자·동작 동일). 둘 다 콘솔을 UTF-8(코드 페이지 65001)로 바꿔 한글 출력이 깨지지 않게 하고, JDK 24 이상에서 Gradle이 먼저 찍는 네이티브 접근 WARNING도 끈다. 아래의 `./gradlew`는 cmd·PowerShell에서 `.\gradlew.bat`로 읽는다. 직접 쓸 때 한글이 깨지면 먼저 `chcp 65001`을 실행한다
 - Slack 알림을 보려면 Incoming Webhook URL (선택. 없어도 전체 흐름이 동작한다)
 
 ### 세 단계 실행
@@ -52,11 +52,13 @@ docker compose up -d
 
 # 2. 중앙 서버 기동 — 기동마다 db/schema.sql(테이블 보장)과 db/seed.sql(측정소 3곳, 없는 것만 등록)을 실행한다
 ./run-server.sh                      # .env를 읽어 ./gradlew :central-server:bootRun 을 실행한다
-#    Slack으로 보내려면:  SLACK_WEBHOOK_URL=https://hooks.slack.com/services/... ./run-server.sh
+#    Windows cmd·PowerShell:  .\run-server.cmd
+#    Slack으로 보내려면:  SLACK_WEBHOOK_URL=https://hooks.slack.com/services/... ./run-server.sh   (또는 .env에 적는다)
 
 # 3. 다른 터미널에서 측정소 시뮬레이터 기동 — data/*.json 파일마다 프로세스 1개
 ./run-stations.sh          # 1초 간격 (원본 1시간 → 1초). 한 달치 744건에 약 12분 24초
 ./run-stations.sh 10       # 10ms 간격. 빠른 검증용, 약 8초
+#    Windows cmd·PowerShell:  .\run-stations.cmd  /  .\run-stations.cmd 10
 ```
 
 시뮬레이터 터미널에는 `[111311 노원구] seq=17 2023-03-01T16 pm10=34.0 pm25=24.0 → ACK` 형태로 한 줄씩 찍히고,
@@ -124,6 +126,8 @@ docker compose down -v && docker compose up -d     # 볼륨까지 삭제. 재기
 ./gradlew registerStation --code=111191 --name=은평구 --token=dev-token-eunpyeong-111191
 ./run-stations.sh 10 data/은평구.json                      # 744건 수신, 경보 33건
 ```
+
+Windows cmd·PowerShell에서는 `.\run-stations.cmd 10`, `.\gradlew.bat registerStation ...`, `.\run-stations.cmd 10 data\은평구.json`이다.
 
 ---
 
@@ -229,8 +233,10 @@ dustwatch/
 ├ db/                init.sql(롤·DB), schema.sql(테이블), seed.sql(초기 측정소 3곳)
 ├ docker-compose.yml postgres:18-alpine
 ├ .env.example       환경변수 목록과 기본값. 복사해 .env로 쓴다
-├ run-server.sh      .env를 읽어 중앙 서버 기동
-├ run-stations.sh    측정소 일괄 기동
+├ run-server.sh      .env를 읽어 중앙 서버 기동 (Git Bash)
+├ run-stations.sh    측정소 일괄 기동 (Git Bash)
+├ run-server.cmd     Windows cmd·PowerShell용. run-server.ps1을 실행 정책 설정 없이 띄우는 래퍼
+├ run-stations.cmd   Windows cmd·PowerShell용. run-stations.ps1 래퍼
 └ docs/              아래 문서들
 ```
 
