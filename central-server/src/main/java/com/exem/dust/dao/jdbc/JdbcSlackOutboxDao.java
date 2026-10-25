@@ -8,10 +8,8 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
+import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.Optional;
 
 @Repository
@@ -36,57 +34,57 @@ public class JdbcSlackOutboxDao implements SlackOutboxDao {
         this.jdbc = jdbc;
     }
 
-    /** 전송 가능 시각이 지난 PENDING 중 가장 오래된 1건. 메시지 본문용 측정소 이름을 함께 읽는다. */
+    /** DB 시계 기준으로 시도 가능 시각이 지난 PENDING 중 가장 오래된 1건. 메시지 본문용 측정소 이름을 함께 읽는다. */
     @Override
-    public Optional<PendingAlert> nextPending(Instant now) {
+    public Optional<PendingAlert> nextPending() {
         return jdbc.sql("""
                 SELECT a.id, a.station_id, s.name AS station_name, a.issued_at, a.grade,
                        a.trigger_value, a.sustained_hours, a.slack_attempts
                 FROM alert_log a
                 JOIN station s ON s.station_id = a.station_id
-                WHERE a.slack_status = 'PENDING' AND a.slack_next_at <= :now
+                WHERE a.slack_status = 'PENDING' AND a.slack_next_at <= now()
                 ORDER BY a.issued_at, a.id
                 LIMIT 1
                 """)
-                .param("now", utc(now))
                 .query(ROW_MAPPER)
                 .optional();
     }
 
-    /** 성공 처리. 이전 시도의 오류 문구는 지운다. */
+    /** 성공 처리. 전송 시각은 DB 시계, 이전 시도의 오류 문구는 지운다. */
     @Override
-    public void markSent(long id, Instant sentAt) {
+    public void markSent(long id) {
         jdbc.sql("""
                 UPDATE alert_log
-                SET slack_status = 'SENT', slack_sent_at = :sentAt, slack_error = NULL
+                SET slack_status = 'SENT', slack_sent_at = now(), slack_error = NULL
                 WHERE id = :id
                 """)
                 .param("id", id)
-                .param("sentAt", utc(sentAt))
                 .update();
     }
 
-    /** 재시도 예약. 상태는 PENDING 그대로 두고 횟수·다음 시각·오류만 적는다. */
+    /** 재시도 예약. 상태는 PENDING 그대로 두고 횟수·다음 시각(now() + 백오프)·오류만 적는다. */
     @Override
-    public void scheduleRetry(long id, int attempts, Instant nextAttemptAt, String error) {
+    public void scheduleRetry(long id, int attempts, Duration backoff, String error) {
         jdbc.sql("""
                 UPDATE alert_log
-                SET slack_attempts = :attempts, slack_next_at = :nextAt, slack_error = :error
+                SET slack_attempts = :attempts,
+                    slack_next_at = now() + make_interval(secs => :backoffSeconds),
+                    slack_error = :error
                 WHERE id = :id
                 """)
                 .param("id", id)
                 .param("attempts", attempts)
-                .param("nextAt", utc(nextAttemptAt))
+                .param("backoffSeconds", backoff.toSeconds())
                 .param("error", truncate(error))
                 .update();
     }
 
     /** 429처럼 횟수에 세지 않고 미루기만 한다. */
     @Override
-    public void defer(long id, Instant nextAttemptAt) {
-        jdbc.sql("UPDATE alert_log SET slack_next_at = :nextAt WHERE id = :id")
+    public void defer(long id, Duration retryAfter) {
+        jdbc.sql("UPDATE alert_log SET slack_next_at = now() + make_interval(secs => :retryAfterSeconds) WHERE id = :id")
                 .param("id", id)
-                .param("nextAt", utc(nextAttemptAt))
+                .param("retryAfterSeconds", retryAfter.toSeconds())
                 .update();
     }
 
@@ -117,11 +115,6 @@ public class JdbcSlackOutboxDao implements SlackOutboxDao {
                 .param("status", status)
                 .query(Long.class)
                 .single();
-    }
-
-    /** TIMESTAMPTZ 파라미터로 넘길 UTC 표현. */
-    private static OffsetDateTime utc(Instant instant) {
-        return instant.atOffset(ZoneOffset.UTC);
     }
 
     /** 응답 본문이 길어도 행이 커지지 않게 자른다. */

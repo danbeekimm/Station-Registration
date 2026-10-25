@@ -17,9 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -30,6 +28,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>한 건 보내면 sendInterval(1초)만큼 쉬어 Incoming Webhook의 초당 1건 제한을 지킨다.</li>
  *   <li>큐가 비면 1초 대기하되, 경보가 커밋되면 이벤트로 즉시 깨어난다.</li>
  *   <li>Slack 장애는 이 스레드에만 영향을 준다. 수신·판정·기록 경로는 Slack을 기다리지 않는다.</li>
+ *   <li>시도 가능 시각의 비교·계산은 DAO가 DB 시계로 한다. 앱 시계와 DB 시계의 차이가 전송 순서에 끼어들지 않는다.</li>
  * </ul>
  */
 @Component
@@ -42,7 +41,6 @@ public class SlackDispatcher implements SmartLifecycle {
     private final SlackOutboxDao outbox;
     private final SlackWebhookClient client;
     private final SlackMessageFormatter formatter;
-    private final Clock clock;
     private final ApplicationEventPublisher events;
     private final LinkedBlockingQueue<Boolean> wakeSignals = new LinkedBlockingQueue<>();
 
@@ -50,12 +48,11 @@ public class SlackDispatcher implements SmartLifecycle {
     private volatile boolean running;
 
     public SlackDispatcher(DustProperties properties, SlackOutboxDao outbox, SlackWebhookClient client,
-                           SlackMessageFormatter formatter, Clock clock, ApplicationEventPublisher events) {
+                           SlackMessageFormatter formatter, ApplicationEventPublisher events) {
         this.slack = properties.slack();
         this.outbox = outbox;
         this.client = client;
         this.formatter = formatter;
-        this.clock = clock;
         this.events = events;
     }
 
@@ -112,26 +109,25 @@ public class SlackDispatcher implements SmartLifecycle {
             }
             return false;
         }
-        var now = Instant.now(clock);
-        var next = outbox.nextPending(now);
+        var next = outbox.nextPending();
         if (next.isEmpty()) {
             return false;
         }
-        deliver(next.get(), now);
+        deliver(next.get());
         return true;
     }
 
     /** 1건을 보내고 결과대로 행 상태를 바꾼 뒤 지표용 이벤트를 발행한다. */
-    private void deliver(PendingAlert pending, Instant now) {
+    private void deliver(PendingAlert pending) {
         var alert = pending.alert();
         var status = switch (client.send(slack.webhookUrl(), formatter.format(pending))) {
             case SendSucceeded _ -> {
-                outbox.markSent(pending.id(), now);
+                outbox.markSent(pending.id());
                 log.info("Slack 전송 완료: [{}] {} {}", alert.stationId(), alert.rule().label(), alert.issuedAt());
                 yield "SENT";
             }
             case SendRateLimited(var retryAfter) -> {
-                outbox.defer(pending.id(), now.plus(retryAfter));
+                outbox.defer(pending.id(), retryAfter);
                 log.warn("Slack 429, {}초 후 재시도: [{}] {}", retryAfter.toSeconds(), alert.stationId(), alert.issuedAt());
                 yield "RATE_LIMITED";
             }
@@ -143,7 +139,7 @@ public class SlackDispatcher implements SmartLifecycle {
                     yield "FAILED";
                 }
                 var backoff = Duration.ofSeconds(1L << (attempts - 1));  // 1초, 2초, 4초…
-                outbox.scheduleRetry(pending.id(), attempts, now.plus(backoff), error);
+                outbox.scheduleRetry(pending.id(), attempts, backoff, error);
                 log.warn("Slack 전송 실패({}회), {}초 후 재시도: [{}] {} - {}", attempts, backoff.toSeconds(), alert.stationId(), alert.issuedAt(), error);
                 yield "RETRY";
             }
