@@ -113,50 +113,64 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js"></script>
 <script th:inline="javascript">
+    // 흐름: 서버가 심어 준 초기 데이터로 카드별 차트를 그린다 → /stream(SSE)을 구독한다
+    //       → measurement·alert·maintenance 이벤트가 오면 해당 핸들러가 카드·차트·피드를 제자리에서 갱신한다.
+    // 서버가 Thymeleaf로 치환하는 값. 뒤의 리터럴은 템플릿 엔진 없이 열었을 때의 기본값이다.
     const INITIAL_STATIONS = /*[(${stationsJson})]*/ [];
     const MAX_POINTS = /*[[${chartPoints}]]*/ 48;
+    // 측정소 코드 → Chart.js 인스턴스. 이벤트가 오면 이 맵에서 찾아 점을 추가한다.
     const charts = new Map();
 
+    // "2023-03-23T22:00:00" → "03-23 22:00". 축 라벨과 피드에 공통으로 쓴다.
     const label = (at) => at ? at.replace('T', ' ').substring(5, 16) : '';
+    // 농도 표시. null(점검)은 대시, 그 외는 소수 첫째 자리까지.
     const fmt = (v) => (v === null || v === undefined) ? '–' : Math.round(v * 10) / 10;
 
+    // 카드 하나의 차트를 만든다. PM10·PM2.5 선 두 개와 기준선 세 개(300·150·75).
+    // 점검 시각은 값이 null이라 spanGaps=false로 선이 끊겨 보이게 둔다.
     function buildChart(canvas, points) {
         const ctx = canvas.getContext('2d');
-        const constant = (value) => points.map(() => value);
-        const chart = new Chart(ctx, {
+        // 기준선은 모든 점에 같은 값. constantValue는 pushPoint가 새 점을 붙일 때 다시 쓴다.
+        const threshold = (name, value, color, dash) =>
+            ({ label: name, constantValue: value, data: points.map(() => value), borderColor: color, borderDash: dash, pointRadius: 0, borderWidth: 1 });
+        return new Chart(ctx, {
             type: 'line',
             data: {
                 labels: points.map(p => label(p.at)),
                 datasets: [
                     { label: 'PM10', data: points.map(p => p.pm10), borderColor: '#1f77b4', backgroundColor: '#1f77b4', tension: 0.2, pointRadius: 2, spanGaps: false },
                     { label: 'PM2.5', data: points.map(p => p.pm25), borderColor: '#9467bd', backgroundColor: '#9467bd', tension: 0.2, pointRadius: 2, spanGaps: false },
-                    { label: 'PM10 경보 300', data: constant(300), borderColor: '#d0021b', borderDash: [6, 4], pointRadius: 0, borderWidth: 1 },
-                    { label: 'PM10 주의보 150', data: constant(150), borderColor: '#f5a623', borderDash: [6, 4], pointRadius: 0, borderWidth: 1 },
-                    { label: 'PM2.5 주의보 75', data: constant(75), borderColor: '#e67e22', borderDash: [2, 4], pointRadius: 0, borderWidth: 1 }
+                    threshold('PM10 경보 300', 300, '#d0021b', [6, 4]),
+                    threshold('PM10 주의보 150', 150, '#f5a623', [6, 4]),
+                    threshold('PM2.5 주의보 75', 75, '#e67e22', [2, 4])
                 ]
             },
             options: { animation: false, responsive: true, maintainAspectRatio: false,
                        scales: { y: { beginAtZero: true } }, plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } } }
         });
-        return chart;
     }
 
+    // 측정값 1건을 차트 끝에 붙인다. MAX_POINTS(최근 48시간)를 넘으면 가장 오래된 점을 모든 데이터셋에서 함께 떼어 낸다.
     function pushPoint(stationId, event) {
         const chart = charts.get(stationId);
         if (!chart) return;
+        const [pm10, pm25, ...thresholds] = chart.data.datasets;
         chart.data.labels.push(label(event.at));
-        chart.data.datasets[0].data.push(event.pm10);
-        chart.data.datasets[1].data.push(event.pm25);
-        for (let i = 2; i < chart.data.datasets.length; i++) chart.data.datasets[i].data.push(chart.data.datasets[i].data[0] ?? [300, 150, 75][i - 2]);
-        if (chart.data.labels.length > MAX_POINTS) chart.data.datasets.forEach(d => d.data.shift()) || chart.data.labels.shift();
-        if (chart.data.labels.length > MAX_POINTS) chart.data.labels.shift();
+        pm10.data.push(event.pm10);
+        pm25.data.push(event.pm25);
+        thresholds.forEach(line => line.data.push(line.constantValue));
+        if (chart.data.labels.length > MAX_POINTS) {
+            chart.data.labels.shift();
+            chart.data.datasets.forEach(dataset => dataset.data.shift());
+        }
         chart.update();
     }
 
+    // 측정소 카드를 돌려준다. 처음 보는 측정소(서버 기동 후 등록·접속한 곳)는 빈 카드와 빈 차트를 만들어 붙인다.
+    // 서버가 그린 카드와 같은 data-field 구조를 유지해야 아래 핸들러들이 같은 선택자로 갱신할 수 있다.
     function ensureCard(stationId) {
         let card = document.getElementById(stationId);
         if (card) return card;
-        // 처음 보는 측정소(기동 후 등록·접속)는 카드를 동적으로 만든다
         card = document.createElement('article');
         card.className = 'card'; card.id = stationId; card.dataset.station = stationId;
         card.innerHTML = `<h2><span>${stationId}</span> <small>${stationId}</small> <span class="badge none">경보 없음</span></h2>
@@ -167,6 +181,7 @@
         return card;
     }
 
+    // measurement 이벤트: 카드의 최신 농도·측정 시각을 바꾸고 차트에 점을 추가한다.
     function onMeasurement(event) {
         const card = ensureCard(event.stationId);
         card.querySelector('[data-field=pm10]').textContent = fmt(event.pm10);
@@ -175,6 +190,8 @@
         pushPoint(event.stationId, event);
     }
 
+    // alert 이벤트: 카드 배지를 그 등급으로 바꾸고 카드·헤더의 경보 건수를 올린 뒤 피드 맨 위에 행을 넣는다.
+    // Slack 상태는 이 시점엔 아직 전송 전이라 PENDING으로 표시한다(새로고침하면 DB 값으로 바뀐다).
     function onAlert(event) {
         const card = ensureCard(event.stationId);
         const badge = card.querySelector('.badge');
@@ -190,9 +207,11 @@
             <td>${event.level}</td><td>${event.pollutant} ${fmt(event.triggerValue)}</td><td>${event.sustainedHours}시간</td><td class="muted">PENDING</td>`;
         const feed = document.getElementById('alert-feed');
         feed.prepend(row);
-        while (feed.rows.length > 30) feed.deleteRow(-1);
+        while (feed.rows.length > 30) feed.deleteRow(-1);  // 서버 초기 렌더와 같은 30건 유지
     }
 
+    // maintenance 이벤트: 카드의 "점검 중" 태그를 붙이거나(started·extended) 떼고(ended),
+    // 점검 피드에서는 (측정소|장비|시작 시각) 키로 같은 행을 찾아 갱신한다. 매 시간 연장되어도 행이 늘지 않는다.
     function onMaintenance(event) {
         const card = ensureCard(event.stationId);
         const name = card.querySelector('h2 span').textContent;
@@ -207,11 +226,13 @@
         if (!row) { row = document.createElement('tr'); row.dataset.key = key; feed.prepend(row); }
         row.innerHTML = `<td>${name}</td><td>${event.equipment}</td><td>${label(event.startedAt)}</td>
             <td>${event.endedAt ? label(event.endedAt) : '진행 중'}</td><td>${event.hours}</td>`;
-        while (feed.rows.length > 20) feed.deleteRow(-1);
+        while (feed.rows.length > 20) feed.deleteRow(-1);  // 서버 초기 렌더와 같은 20건 유지
     }
 
+    // 1) 초기 렌더: 서버가 심어 준 측정소별 최근 점들로 차트를 그린다.
     INITIAL_STATIONS.forEach(s => charts.set(s.id, buildChart(document.querySelector(`canvas[data-chart="${s.id}"]`), s.points)));
 
+    // 2) SSE 구독. 끊기면 브라우저 EventSource가 스스로 재접속하므로 재연결 코드는 없고 상태 표시만 바꾼다.
     const live = document.getElementById('live');
     const source = new EventSource('/stream');
     source.onopen = () => { live.className = 'on'; live.textContent = '실시간 수신 중'; };
@@ -220,6 +241,7 @@
     source.addEventListener('alert', e => onAlert(JSON.parse(e.data)));
     source.addEventListener('maintenance', e => onMaintenance(JSON.parse(e.data)));
 
+    // 3) Slack 메시지의 링크(#측정소코드)로 들어왔으면 그 카드로 스크롤한다.
     if (location.hash) { const target = document.getElementById(location.hash.substring(1)); if (target) target.scrollIntoView(); }
 </script>
 </body>
