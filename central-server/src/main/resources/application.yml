@@ -10,6 +10,26 @@ spring:
       pool-name: dust-pool
       maximum-pool-size: 5
 
+dust:
+  tcp:
+    port: ${DUST_TCP_PORT:9000}
+    hello-timeout: 5s      # 접속 후 HELLO가 와야 하는 시간. 빈 연결 점유 방지
+    read-timeout: 30s      # 인증 뒤 메시지 간 최대 공백. 1초 간격 전송이 30초 멈추면 비정상으로 본다
+    max-line-bytes: 4096
+  # 기동 시 station 테이블에 upsert하는 초기 측정소. 토큰은 해시로만 저장된다.
+  # 아래 기본 토큰은 개발·평가용으로 의도적으로 저장소에 포함했으며 run-stations.sh의 기본값과 같다.
+  # 운영이라면 STATION_TOKEN_<코드> 환경변수로 덮어쓴다. 추가 측정소는 registerStation 태스크로 DB에 직접 등록한다.
+  stations:
+    - code: "111311"
+      name: 노원구
+      token: ${STATION_TOKEN_111311:dev-token-nowon-111311}
+    - code: "111121"
+      name: 중구
+      token: ${STATION_TOKEN_111121:dev-token-junggu-111121}
+    - code: "111212"
+      name: 강서구
+      token: ${STATION_TOKEN_111212:dev-token-gangseo-111212}
+
 logging:
   level:
     com.exem.dust: INFO

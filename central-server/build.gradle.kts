@@ -31,6 +31,13 @@ tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
 }
 
+// 제출용 db/schema.sql을 그대로 클래스패스(db/schema.sql)에 넣어 서버가 기동 시 같은 파일을 실행한다.
+tasks.processResources {
+    from(rootProject.file("db/schema.sql")) {
+        into("db")
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
 }
