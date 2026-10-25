@@ -14,10 +14,12 @@ public record ConnectionReject(Instant rejectedAt, String remoteIp, String stati
 
     public static final int RAW_MESSAGE_LIMIT = 512;
 
+    /** 현재 시각으로 거부 기록을 만든다. 원문은 저장 한도에 맞춰 자른다. */
     public static ConnectionReject now(String remoteIp, String stationId, RejectReason reason, String rawMessage) {
         return new ConnectionReject(Instant.now(), remoteIp, stationId, reason, truncate(rawMessage));
     }
 
+    /** 원문 앞부분만 남긴다. 컬럼 길이(512)를 넘는 입력도 기록은 남아야 한다. */
     private static String truncate(String rawMessage) {
         if (rawMessage == null || rawMessage.length() <= RAW_MESSAGE_LIMIT) {
             return rawMessage;

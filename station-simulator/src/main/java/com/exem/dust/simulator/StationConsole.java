@@ -9,14 +9,17 @@ final class StationConsole {
         this.prefix = "[%s %s]".formatted(stationCode, stationName);
     }
 
+    /** 진행 상황. 전송 1건마다 한 줄이 나온다. */
     void info(String message) {
         System.out.println(prefix + " " + message);
     }
 
+    /** 복구 가능한 문제(재전송·재접속). 흐름 속에서 보이도록 표준 출력에 남긴다. */
     void warn(String message) {
         System.out.println(prefix + " [경고] " + message);
     }
 
+    /** 실행을 끝내는 오류. 표준 오류로 보낸다. */
     void error(String message) {
         System.err.println(prefix + " [오류] " + message);
     }

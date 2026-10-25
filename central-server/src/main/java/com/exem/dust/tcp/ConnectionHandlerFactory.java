@@ -36,6 +36,7 @@ public class ConnectionHandlerFactory {
         this.sessions = sessions;
     }
 
+    /** 소켓 하나를 끝까지 담당할 핸들러. 공유 의존성만 넘기고 접속 상태는 핸들러가 가진다. */
     ConnectionHandler create(Socket socket) {
         return new ConnectionHandler(socket, properties, codec, authService, stateLoader, validator, ingestService,
                 rejectRecorder, sessions);

@@ -27,6 +27,7 @@ public class RejectRecorder {
         this.events = events;
     }
 
+    /** 거부 1건을 DB에 남기고 지표용 이벤트를 발행한다. DB 실패는 로그만 남기고 삼킨다. */
     public void record(String remoteIp, String stationId, RejectReason reason, String rawMessage) {
         try {
             rejectDao.insert(ConnectionReject.now(remoteIp, stationId, reason, rawMessage));

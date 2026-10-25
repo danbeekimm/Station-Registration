@@ -20,6 +20,7 @@ public class StationAuthService {
         this.stationDao = stationDao;
     }
 
+    /** 프로토콜 버전 → 필수 필드 → 등록 여부 → 토큰 순으로 검사한다. */
     public AuthResult authenticate(Hello hello) {
         if (hello.protocol() != Protocol.VERSION) {
             return new AuthResult.Rejected(RejectReason.UNSUPPORTED_PROTOCOL, "지원 프로토콜 버전은 " + Protocol.VERSION);

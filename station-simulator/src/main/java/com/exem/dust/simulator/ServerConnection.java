@@ -44,12 +44,14 @@ final class ServerConnection implements AutoCloseable {
         }
     }
 
+    /** 메시지 한 건을 한 줄로 쓰고 바로 flush한다. */
     void send(Message message) throws IOException {
         writer.write(codec.encode(message));
         writer.write('\n');
         writer.flush();
     }
 
+    /** 서버 응답 한 줄을 읽어 메시지로 바꾼다. 연결이 닫혔거나 해석할 수 없으면 IOException으로 재접속을 유도한다. */
     Message receive() throws IOException {
         var line = reader.readLine();
         if (line == null) {

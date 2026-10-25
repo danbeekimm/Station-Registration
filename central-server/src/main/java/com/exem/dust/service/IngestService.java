@@ -66,6 +66,7 @@ public class IngestService {
         return new IngestResult.Stored(measurement, evaluation);
     }
 
+    /** 점검 시작·종료만 로그로 남긴다. 매 시간 연장은 소음이다. */
     private static void logMaintenance(MaintenanceChange change) {
         var window = change.window();
         switch (change) {

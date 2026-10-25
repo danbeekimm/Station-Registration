@@ -29,6 +29,7 @@ final class FixedRateSchedule {
         return remaining > 0 ? Duration.ofNanos(remaining) : Duration.ZERO;
     }
 
+    /** slotIndex번째 송신 시각까지 잔다. 이미 지났으면 바로 돌아온다. */
     void awaitSlot(long slotIndex) throws InterruptedException {
         var remaining = remainingUntil(slotIndex);
         if (!remaining.isZero()) {

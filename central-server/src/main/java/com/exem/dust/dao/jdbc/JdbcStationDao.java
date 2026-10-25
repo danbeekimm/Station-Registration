@@ -23,6 +23,7 @@ public class JdbcStationDao implements StationDao {
         this.jdbc = jdbc;
     }
 
+    /** HELLO 인증 때마다 호출된다. 캐시를 두지 않아 등록 직후 바로 반영된다. */
     @Override
     public Optional<RegisteredStation> findById(String stationId) {
         return jdbc.sql("SELECT station_id, name, token_hash FROM station WHERE station_id = :stationId")
@@ -31,6 +32,7 @@ public class JdbcStationDao implements StationDao {
                 .optional();
     }
 
+    /** 등록된 측정소 전체. 코드순. */
     @Override
     public List<RegisteredStation> findAll() {
         return jdbc.sql("SELECT station_id, name, token_hash FROM station ORDER BY station_id")
@@ -38,6 +40,7 @@ public class JdbcStationDao implements StationDao {
                 .list();
     }
 
+    /** 있으면 이름·해시를 갱신하고 없으면 등록한다. 기동 시드와 registerStation이 같은 문장을 쓴다. */
     @Override
     public void upsert(RegisteredStation station) {
         jdbc.sql("""

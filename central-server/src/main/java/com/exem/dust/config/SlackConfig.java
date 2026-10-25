@@ -11,6 +11,7 @@ import java.net.http.HttpClient;
 @Configuration
 public class SlackConfig {
 
+    /** JDK HttpClient 기반. 연결 타임아웃은 HttpClient에, 응답 타임아웃은 요청 팩토리에 건다. */
     @Bean
     public RestClient slackRestClient(RestClient.Builder builder, DustProperties properties) {
         var slack = properties.slack();

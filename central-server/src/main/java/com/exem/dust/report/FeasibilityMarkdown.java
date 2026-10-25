@@ -4,7 +4,6 @@ import com.exem.dust.domain.alert.AlertRule;
 import com.exem.dust.domain.maintenance.Equipment;
 import com.exem.dust.domain.measurement.Pollutant;
 
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +13,7 @@ public final class FeasibilityMarkdown {
 
     private static final DateTimeFormatter HOUR = DateTimeFormatter.ofPattern("MM-dd HH:00");
 
+    /** 등급별 요약 표와 결론을 먼저, 측정소별 상세 표를 그 아래에 쓴다. */
     public String render(List<StationFeasibility> stations) {
         var out = new StringBuilder();
         out.append("### 요약: 등급별 실제 발령 가능 여부\n\n");
@@ -36,6 +36,7 @@ public final class FeasibilityMarkdown {
         return out.toString();
     }
 
+    /** 측정소 한 곳: 룰별 표, 장비별 점검 표, 결측 표현, 파서 경고. */
     private void renderStation(StringBuilder out, StationFeasibility station) {
         out.append("\n### %s (%s) — %d행, 시각 누락 %d, 건너뛴 행 %d, 기록될 경보 %d건\n\n".formatted(
                 station.stationName(), station.stationCode(), station.rowCount(), station.timeGaps(),
@@ -72,6 +73,7 @@ public final class FeasibilityMarkdown {
         }
     }
 
+    /** 등급별 발령 가능 여부 한 줄. 불가면 가장 높았던 값과 기준을 함께 적어 얼마나 모자랐는지 보인다. */
     private static String conclusion(AlertRule rule, List<StationFeasibility> stations) {
         if (rule.pollutant() == Pollutant.O3) {
             return "발령 불가 — 제공 데이터에 오존 측정값이 없음";
@@ -89,6 +91,7 @@ public final class FeasibilityMarkdown {
                 .orElse("발령 불가 — 데이터 없음");
     }
 
+    /** 룰별 비고. 미달이면 지속 시간이 모자랐는지, 농도 자체가 낮았는지 구분한다. */
     private static String remark(AlertRule rule, StationFeasibility.RuleStats stats, Optional<StationFeasibility.Peak> peak) {
         if (rule.pollutant() == Pollutant.O3) {
             return "O3 데이터 없음";
@@ -102,10 +105,12 @@ public final class FeasibilityMarkdown {
         return peak.map(found -> "최댓값이 기준 %s 미달".formatted(formatValue(rule.threshold()))).orElse("");
     }
 
+    /** 기준 문구. 예: PM2.5 ≥ 150 ㎍/㎥ 2시간 이상 */
     private static String describeRule(AlertRule rule) {
         return "%s ≥ %s %s %d시간 이상".formatted(rule.pollutant().label(), formatValue(rule.threshold()), rule.pollutant().unit(), rule.sustainedHours());
     }
 
+    /** 최장 연속 구간 문구. 한 번도 기준을 넘지 않았으면 "없음". */
     private static String describeStreak(StationFeasibility.Streak streak) {
         if (!streak.exists()) {
             return "없음";
@@ -113,11 +118,8 @@ public final class FeasibilityMarkdown {
         return "%d시간 (%s ~ %s)".formatted(streak.hours(), HOUR.format(streak.start()), HOUR.format(streak.end()));
     }
 
+    /** 정수면 소수점 없이, 오존 ppm처럼 작은 값은 소수 그대로. */
     private static String formatValue(double value) {
         return value == Math.rint(value) ? String.valueOf((long) value) : String.valueOf(value);
-    }
-
-    static String formatHour(LocalDateTime time) {
-        return HOUR.format(time);
     }
 }

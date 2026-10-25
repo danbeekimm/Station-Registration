@@ -23,6 +23,7 @@ public class StationStateLoader {
         this.measurementDao = measurementDao;
     }
 
+    /** 저장된 측정값을 시각순으로 다시 accept()해 상태를 만든다. 저장된 것이 없으면 빈 상태. */
     @Transactional(readOnly = true)
     public Station load(String stationId) {
         var station = new Station(stationId);

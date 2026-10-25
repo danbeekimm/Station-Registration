@@ -77,6 +77,7 @@ final class ConnectionHandler implements Runnable {
         this.sessions = sessions;
     }
 
+    /** 접속 하나의 전체 수명. 어떤 경로로 끝나든 소켓을 닫고 세션 등록을 푼다. */
     @Override
     public void run() {
         try (socket;
@@ -107,6 +108,7 @@ final class ConnectionHandler implements Runnable {
         }
     }
 
+    /** 첫 줄이 제한 시간 안에 온 HELLO인지 확인하고 인증으로 넘긴다. @return 인증까지 성공하면 true */
     private boolean performHandshake(BoundedLineReader reader, MessageWriter writer) throws IOException {
         socket.setSoTimeout((int) tcp.helloTimeout().toMillis());
         LineRead firstLine;
@@ -136,6 +138,7 @@ final class ConnectionHandler implements Runnable {
         };
     }
 
+    /** 토큰 검증 → 세션 등록(기존 접속 교체) → 상태 복원 → WELCOME 순. 이후부터 읽기 타임아웃이 30초로 바뀐다. */
     private boolean authenticate(Hello hello, MessageWriter writer) throws IOException {
         return switch (authService.authenticate(hello)) {
             case AuthResult.Rejected(var reason, var detail) -> {
@@ -161,6 +164,7 @@ final class ConnectionHandler implements Runnable {
         };
     }
 
+    /** 인증 후 메시지 루프. BYE, 치명적 거부, 저장 실패, 상대의 연결 종료 중 하나로 끝난다. */
     private void serve(BoundedLineReader reader, MessageWriter writer) throws IOException {
         while (true) {
             switch (reader.readLine()) {
@@ -197,6 +201,7 @@ final class ConnectionHandler implements Runnable {
         };
     }
 
+    /** 검증 → 저장·판정 → ACK. 거부된 건의 seq는 소비해 측정소가 다음 건을 이어 보낼 수 있게 한다. @return 접속 유지 여부 */
     private boolean handleData(Data data, MessageWriter writer, String rawText) throws IOException {
         var context = new MessageValidator.SessionContext(station.id(), lastSeenSeq, state.lastMeasuredAt());
         var violation = validator.validate(data, context);
@@ -243,6 +248,7 @@ final class ConnectionHandler implements Runnable {
         rejectRecorder.record(remoteIp, claimedStationId, reason, RawMessageMasker.maskToken(rawMessage));
     }
 
+    /** 로그용 접속 식별자. 인증 후에는 측정소 코드·이름이 붙는다. */
     private String describe() {
         return station == null ? remoteAddress : station.id() + " " + station.name() + " " + remoteAddress;
     }

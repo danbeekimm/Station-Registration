@@ -10,6 +10,7 @@ public final class RawMessageMasker {
     private RawMessageMasker() {
     }
 
+    /** "token":"…" 값을 ****로 바꾼다. 패턴이 없으면 그대로 돌려준다. */
     public static String maskToken(String rawMessage) {
         if (rawMessage == null) {
             return null;

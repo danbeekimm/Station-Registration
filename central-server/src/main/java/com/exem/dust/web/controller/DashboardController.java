@@ -29,6 +29,7 @@ public class DashboardController {
         this.dashboardDao = dashboardDao;
     }
 
+    /** 초기 화면. 카드·피드·거부 집계를 DB에서 읽어 모델에 담는다. 이후 갱신은 /stream이 맡는다. */
     @GetMapping("/")
     public String dashboard(Model model) {
         var cards = dashboardDao.stationCards(CHART_POINTS);
@@ -51,6 +52,7 @@ public class DashboardController {
                 .collect(Collectors.joining(" · "));
     }
 
+    /** 정수 기준은 소수점 없이, 오존 0.12는 그대로. */
     private static String formatThreshold(double threshold) {
         return threshold == Math.rint(threshold) ? String.valueOf((long) threshold) : String.valueOf(threshold);
     }

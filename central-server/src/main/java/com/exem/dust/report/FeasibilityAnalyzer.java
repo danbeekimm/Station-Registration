@@ -39,6 +39,7 @@ public final class FeasibilityAnalyzer {
         this.parser = parser;
     }
 
+    /** 파일 하나를 처음부터 끝까지 재생해 측정소별 통계를 만든다. 측정소가 여럿 섞인 파일은 받지 않는다. */
     public StationFeasibility analyze(Path file) {
         var dustFile = parser.parse(file);
         var data = dustFile.single();

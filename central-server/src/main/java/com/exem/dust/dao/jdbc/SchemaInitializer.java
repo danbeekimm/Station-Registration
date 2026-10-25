@@ -32,6 +32,7 @@ public class SchemaInitializer {
         this.jdbc = jdbc;
     }
 
+    /** schema.sql을 실행한 뒤 필수 테이블이 모두 있는지 확인한다. 싱글턴 초기화 단계라 TCP 수신보다 먼저 끝난다. */
     @PostConstruct
     public void initialize() {
         var populator = new ResourceDatabasePopulator(new ClassPathResource(SCHEMA_SCRIPT));

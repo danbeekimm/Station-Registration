@@ -40,6 +40,7 @@ public final class MockStationGenerator {
 
     /** 점검(결측) 구간. 시작·종료 시각 포함. */
     record MaintenanceWindow(LocalDateTime start, LocalDateTime end, Set<Equipment> equipment) {
+        /** 이 시각에 이 장비가 점검 중인가. */
         boolean covers(LocalDateTime at, Equipment target) {
             return !at.isBefore(start) && !at.isAfter(end) && equipment.contains(target);
         }
@@ -61,6 +62,7 @@ public final class MockStationGenerator {
         this.parser = parser;
     }
 
+    /** 인자 해석 → 생성 → 파일 쓰기. 출력 디렉터리가 없으면 만든다. */
     public static void main(String[] args) {
         var options = parse(args);
         var code = require(options, "code");
@@ -82,6 +84,7 @@ public final class MockStationGenerator {
         }
     }
 
+    /** 원본들을 같은 시각끼리 묶어 가상 행을 만든다. 행 수나 시각이 어긋나면 실패한다. */
     public List<MockRow> generate(String stationCode, String stationName, List<Path> sources) {
         List<StationData> stations = sources.stream().map(path -> parser.parse(path).single()).toList();
         int rowCount = stations.getFirst().records().size();
@@ -107,6 +110,7 @@ public final class MockStationGenerator {
         return List.copyOf(rows);
     }
 
+    /** 설정된 점검 구간 중 하나라도 이 시각·장비를 덮는가. */
     private static boolean inMaintenance(LocalDateTime at, Equipment equipment) {
         return MAINTENANCE_WINDOWS.stream().anyMatch(window -> window.covers(at, equipment));
     }
@@ -151,6 +155,7 @@ public final class MockStationGenerator {
         return out.append("]\n").toString();
     }
 
+    /** --key=value 인자를 맵으로 바꾼다. 다른 형식은 사용법을 보여 주고 끝낸다. */
     private static Map<String, String> parse(String[] args) {
         var options = new HashMap<String, String>();
         for (var argument : args) {
@@ -163,6 +168,7 @@ public final class MockStationGenerator {
         return options;
     }
 
+    /** 필수 옵션이 비어 있으면 사용법과 함께 끝낸다. */
     private static String require(Map<String, String> options, String key) {
         var value = options.get(key);
         if (value == null || value.isBlank()) {
@@ -171,6 +177,7 @@ public final class MockStationGenerator {
         return value;
     }
 
+    /** 오류와 사용법을 표준 오류에 쓰고 종료 코드 1로 끝낸다. */
     private static void fail(String message) {
         System.err.println(message);
         System.err.println("사용법: ./gradlew makeMockStation --code=<측정소코드> --name=<이름> [--out=<파일>] [--sources=<원본,...>]");

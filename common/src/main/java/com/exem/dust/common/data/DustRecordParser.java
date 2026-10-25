@@ -41,6 +41,7 @@ public final class DustRecordParser {
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
 
+    /** 파일 전체를 읽어 측정소 코드별로 묶는다. 행 단위 문제는 경고로 남기고, 쓸 수 있는 행이 하나도 없으면 실패한다. */
     public DustFile parse(Path file) {
         var rows = readRows(file);
         var warnings = new ArrayList<String>();
@@ -76,6 +77,7 @@ public final class DustRecordParser {
         return new DustFile(file, Map.copyOf(built), List.copyOf(warnings));
     }
 
+    /** 파일을 원본 행 목록으로 바꾼다. 빈 파일과 JSON 배열이 아닌 입력은 여기서 걸러진다. */
     private List<RawRow> readRows(Path file) {
         byte[] content;
         try {
@@ -130,6 +132,7 @@ public final class DustRecordParser {
             this.stationName = stationName;
         }
 
+        /** 같은 시각이 다시 오면 먼저 온 행을 지키고 경고를 남긴다. */
         void add(DustRecord record, int lineNumber, List<String> warnings) {
             if (byTime.putIfAbsent(record.measuredAt(), record) != null) {
                 warnings.add("행 %d (%s %s): 같은 시각이 다시 나와 뒤 행을 버림"
@@ -137,6 +140,7 @@ public final class DustRecordParser {
             }
         }
 
+        /** 시각 오름차순으로 확정한다(TreeMap 순서). */
         StationData build() {
             return new StationData(stationCode, stationName, List.copyOf(byTime.values()));
         }

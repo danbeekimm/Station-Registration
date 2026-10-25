@@ -24,6 +24,7 @@ final class Mt19937 {
         initByArray(toKey(Math.abs(seed)));
     }
 
+    /** 하위 32비트부터 워드로 나눈다. 0은 워드 하나짜리 키. */
     private static int[] toKey(long seed) {
         if (seed == 0) {
             return new int[]{0};
@@ -35,6 +36,7 @@ final class Mt19937 {
         return words.stream().mapToInt(Integer::intValue).toArray();
     }
 
+    /** 단일 32비트 시드로 상태를 채운다. init_by_array가 바탕으로 쓰는 단계다. */
     private void initGenrand(int seed) {
         state[0] = seed;
         for (int i = 1; i < N; i++) {
@@ -43,6 +45,7 @@ final class Mt19937 {
         index = N;
     }
 
+    /** 키 배열로 상태를 섞는다. 상수와 순회 순서가 참조 구현과 같아야 같은 수열이 나온다. */
     private void initByArray(int[] key) {
         initGenrand(19650218);
         int i = 1;
@@ -84,6 +87,7 @@ final class Mt19937 {
         return y;
     }
 
+    /** 624개 상태를 한 번에 다음 세대로 갱신한다. 624개를 다 쓸 때마다 호출된다. */
     private void twist() {
         for (int kk = 0; kk < N - 1; kk++) {
             int y = (state[kk] & UPPER_MASK) | (state[kk + 1] & LOWER_MASK);
@@ -107,6 +111,7 @@ final class Mt19937 {
         return low + (high - low) * nextDouble();
     }
 
+    /** 테스트용: 시드가 어떤 워드로 나뉘는지 보여 준다. */
     static List<Integer> keyWordsOf(long seed) {
         var key = toKey(Math.abs(seed));
         var words = new ArrayList<Integer>(key.length);

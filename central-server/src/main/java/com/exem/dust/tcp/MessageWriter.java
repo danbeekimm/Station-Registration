@@ -21,6 +21,7 @@ final class MessageWriter implements Closeable {
         this.codec = codec;
     }
 
+    /** 한 줄로 쓰고 바로 flush한다. 측정소가 이 응답을 기다리고 있다. */
     synchronized void send(Message message) throws IOException {
         output.write(codec.encode(message));
         output.write('\n');

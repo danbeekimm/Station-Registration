@@ -27,6 +27,7 @@ public final class RegisterStationCommand {
     private RegisterStationCommand() {
     }
 
+    /** 인자를 해석해 토큰을 해시한 뒤 station에 upsert한다. 실패하면 종료 코드 1. */
     public static void main(String[] args) {
         var options = parse(args);
         var code = require(options, "code");
@@ -50,6 +51,7 @@ public final class RegisterStationCommand {
         }
     }
 
+    /** --key=value 인자를 맵으로 바꾼다. 다른 형식은 사용법을 보여 주고 끝낸다. */
     private static Map<String, String> parse(String[] args) {
         var options = new HashMap<String, String>();
         for (var argument : args) {
@@ -62,6 +64,7 @@ public final class RegisterStationCommand {
         return options;
     }
 
+    /** 필수 옵션이 비어 있으면 사용법과 함께 끝낸다. */
     private static String require(Map<String, String> options, String key) {
         var value = options.get(key);
         if (value == null || value.isBlank()) {
@@ -70,11 +73,13 @@ public final class RegisterStationCommand {
         return value;
     }
 
+    /** 서버와 같은 환경변수 이름을 쓴다. 비어 있으면 compose 기본값. */
     private static String envOrDefault(String name, String defaultValue) {
         var value = System.getenv(name);
         return value == null || value.isBlank() ? defaultValue : value;
     }
 
+    /** 오류와 사용법을 표준 오류에 쓰고 종료 코드 1로 끝낸다. */
     private static void fail(String message) {
         System.err.println(message);
         System.err.println("사용법: ./gradlew registerStation --code=<측정소코드> --name=<이름> --token=<토큰>");

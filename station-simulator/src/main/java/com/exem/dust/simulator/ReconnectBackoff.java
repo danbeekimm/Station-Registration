@@ -15,6 +15,7 @@ final class ReconnectBackoff {
         this.next = initial;
     }
 
+    /** 이번에 기다릴 시간을 돌려주고, 다음 대기 시간은 두 배(상한까지)로 올린다. */
     Duration nextDelay() {
         var current = next;
         var doubled = next.multipliedBy(2);
@@ -22,6 +23,7 @@ final class ReconnectBackoff {
         return current;
     }
 
+    /** 접속에 성공하면 처음 대기 시간으로 되돌린다. */
     void reset() {
         next = initial;
     }

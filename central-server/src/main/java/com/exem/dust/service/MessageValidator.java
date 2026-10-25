@@ -34,6 +34,7 @@ public class MessageValidator {
         this.clock = clock;
     }
 
+    /** 첫 번째 위반에서 멈추고 거부 응답을 돌려준다. 비어 있으면 통과. */
     public Optional<Reject> validate(Data data, SessionContext context) {
         if (data.stationId() == null || data.measuredAt() == null || data.seq() <= 0) {
             return reject(RejectReason.SCHEMA, "stationId, seq(1 이상), measuredAt는 필수");
@@ -49,6 +50,7 @@ public class MessageValidator {
         return validateTime(data, context).or(() -> validateRange(data));
     }
 
+    /** 정시 여부 → 시간 역행 → 미래 시각 순. 시각을 건너뛰는 것은 허용한다(지속만 끊긴다). */
     private Optional<Reject> validateTime(Data data, SessionContext context) {
         var measuredAt = data.measuredAt();
         if (measuredAt.getMinute() != 0 || measuredAt.getSecond() != 0 || measuredAt.getNano() != 0) {
@@ -64,6 +66,7 @@ public class MessageValidator {
         return Optional.empty();
     }
 
+    /** 농도 범위. 결측(null)은 대상이 아니고 NaN·음수·상한 초과는 거부한다. */
     private Optional<Reject> validateRange(Data data) {
         if (outOfRange(data.pm10(), limits.maxDustConcentration())) {
             return reject(RejectReason.OUT_OF_RANGE, "pm10 허용 범위 0~%.0f: %s".formatted(limits.maxDustConcentration(), data.pm10()));

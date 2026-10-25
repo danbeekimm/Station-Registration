@@ -47,6 +47,7 @@ final class TransmissionLoop {
         this.console = console;
     }
 
+    /** 접속·전송·재접속을 반복한다. 전송을 끝냈거나 재시도가 무의미한 거부(미등록·토큰 불일치)를 받을 때만 끝난다. */
     ExitCode run() {
         while (true) {
             try (var connection = ServerConnection.open(options.server(), CONNECT_TIMEOUT, options.ackTimeout())) {
@@ -77,11 +78,13 @@ final class TransmissionLoop {
         }
     }
 
+    /** HELLO에 마지막 ACK seq를 실어 보내고 첫 응답(WELCOME 또는 REJECT)을 돌려준다. */
     private Message handshake(ServerConnection connection) throws IOException {
         connection.send(new Hello(station.stationCode(), station.stationName(), token, Protocol.VERSION, lastAckedSeq));
         return connection.receive();
     }
 
+    /** 인증 거부는 재시도해도 소용없다. 등록 명령을 안내하고 사유에 맞는 종료 코드를 정한다. */
     private ExitCode handleHelloReject(Reject reject) {
         if (reject.reason().isAuthFailure()) {
             console.error("서버가 측정소를 거부했습니다 (%s: %s). 중앙 서버에 측정소를 등록한 뒤 다시 실행하세요: ./gradlew registerStation --code=%s --name=%s --token=<토큰>"
@@ -92,6 +95,7 @@ final class TransmissionLoop {
         return ExitCode.FAILURE;
     }
 
+    /** 서버가 알려 준 seq부터 마지막 건까지 고정 주기로 보내고 BYE로 끝낸다. 재동기화가 필요하면 중간에 돌아온다. */
     private TransmitOutcome transmitFrom(ServerConnection connection, int resumeFromSeq) throws IOException, InterruptedException {
         int firstSeq = Math.max(1, resumeFromSeq);
         int lastSeq = records.size();
@@ -132,6 +136,7 @@ final class TransmissionLoop {
         throw new IOException("seq=%d ACK를 %d회 받지 못했습니다".formatted(data.seq(), MAX_SEND_ATTEMPTS));
     }
 
+    /** 보낸 건의 ACK나 REJECT가 올 때까지 읽는다. 앞선 재전송의 늦은 ACK는 건너뛴다. */
     private DeliveryResult awaitResponse(ServerConnection connection, Data data) throws IOException {
         while (true) {
             var response = connection.receive();
@@ -162,6 +167,7 @@ final class TransmissionLoop {
         return DeliveryResult.SKIPPED;
     }
 
+    /** 백오프만큼 기다린다. 인터럽트되면 false를 돌려 루프를 끝낸다. */
     private boolean waitBeforeReconnect() {
         var delay = backoff.nextDelay();
         console.warn("%d초 후 재접속".formatted(delay.toSeconds()));
@@ -174,11 +180,13 @@ final class TransmissionLoop {
         }
     }
 
+    /** seq번째(1부터) 원본 행을 DATA 메시지로 바꾼다. 오존은 제공 데이터에 없어 항상 null. */
     private Data toData(int seq) {
         var record = records.get(seq - 1);
         return new Data(station.stationCode(), seq, record.measuredAt(), record.pm10(), record.pm25(), null);
     }
 
+    /** 로그 한 줄용 요약: seq, 측정 시각(시 단위), 농도. */
     private static String describe(Data data) {
         return "seq=%d %s pm10=%s pm25=%s".formatted(data.seq(), HOUR_FORMAT.format(data.measuredAt()), data.pm10(), data.pm25());
     }

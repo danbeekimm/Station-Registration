@@ -52,6 +52,7 @@ public class JdbcDashboardDao implements DashboardDao {
         this.jdbc = jdbc;
     }
 
+    /** 카드 요약은 한 쿼리로, 차트 점은 측정소마다 따로 읽는다. 측정소가 몇 곳 안 되어 N+1이 문제되지 않는다. */
     @Override
     public List<StationCard> stationCards(int chartPoints) {
         // LATERAL 서브쿼리로 측정소마다 최신 측정값·마지막 경보를 한 번에 읽는다
@@ -80,6 +81,7 @@ public class JdbcDashboardDao implements DashboardDao {
         return withPoints;
     }
 
+    /** 차트 점을 뺀 카드 매핑. 진행 중 점검은 쉼표로 이어진 문자열을 목록으로 푼다. */
     private StationCard mapCardWithoutPoints(ResultSet resultSet, int rowNumber) throws SQLException {
         var openMaintenance = resultSet.getString("open_maintenance");
         return new StationCard(
@@ -96,6 +98,7 @@ public class JdbcDashboardDao implements DashboardDao {
                 List.of());
     }
 
+    /** 최신 N개를 내림차순으로 읽은 뒤 뒤집어 시각순으로 돌려준다. */
     @Override
     public List<ChartPoint> recentPoints(String stationId, int limit) {
         var newestFirst = jdbc.sql("""
@@ -111,6 +114,7 @@ public class JdbcDashboardDao implements DashboardDao {
         return newestFirst.reversed();
     }
 
+    /** 경보 피드. 발령 시각 최신순. */
     @Override
     public List<AlertRow> recentAlerts(int limit) {
         return jdbc.sql("""
@@ -124,6 +128,7 @@ public class JdbcDashboardDao implements DashboardDao {
                 .list();
     }
 
+    /** 점검 피드. 진행 중인 구간을 먼저 보이고, 그다음은 최근 시작순. */
     @Override
     public List<MaintenanceRow> recentMaintenance(int limit) {
         return jdbc.sql("""
@@ -137,6 +142,7 @@ public class JdbcDashboardDao implements DashboardDao {
                 .list();
     }
 
+    /** 거부 사유별 누적. 많은 순으로 정렬된 맵. */
     @Override
     public Map<String, Long> rejectCountsByReason() {
         var counts = new LinkedHashMap<String, Long>();
@@ -147,6 +153,7 @@ public class JdbcDashboardDao implements DashboardDao {
         return counts;
     }
 
+    /** 아직 보내지 못한 Slack 메시지 수. 헤더 요약용. */
     @Override
     public long pendingSlackCount() {
         return jdbc.sql("SELECT count(*) FROM alert_log WHERE slack_status = 'PENDING'").query(Long.class).single();

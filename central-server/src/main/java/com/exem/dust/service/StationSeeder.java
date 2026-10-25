@@ -28,6 +28,7 @@ public class StationSeeder {
         this.stationDao = stationDao;
     }
 
+    /** 시드 항목을 검증하고 upsert한다. 값이 비어 있으면 잘못된 설정이므로 기동을 중단한다. */
     @PostConstruct
     public void seed() {
         for (var seed : properties.stations()) {

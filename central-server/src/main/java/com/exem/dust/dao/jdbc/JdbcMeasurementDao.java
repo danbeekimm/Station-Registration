@@ -30,6 +30,7 @@ public class JdbcMeasurementDao implements MeasurementDao {
         this.jdbc = jdbc;
     }
 
+    /** (station_id, measured_at) 충돌이면 DO NOTHING으로 0행. 재전송·재접속 중복을 예외 없이 걸러 낸다. */
     @Override
     public boolean insertIfAbsent(Measurement measurement) {
         int inserted = jdbc.sql("""
@@ -47,6 +48,7 @@ public class JdbcMeasurementDao implements MeasurementDao {
         return inserted == 1;
     }
 
+    /** 저장된 마지막 seq. 없으면 0이라 재개 지점은 항상 +1로 계산할 수 있다. */
     @Override
     public int maxSeq(String stationId) {
         return jdbc.sql("SELECT COALESCE(MAX(seq), 0) FROM measurement WHERE station_id = :stationId")
@@ -61,6 +63,7 @@ public class JdbcMeasurementDao implements MeasurementDao {
         return value == null ? null : value.doubleValue();
     }
 
+    /** 상태 복원(전체 재생)의 입력. 시각 오름차순이어야 지속 판정이 맞는다. */
     @Override
     public List<Measurement> findAllOrderedByTime(String stationId) {
         return jdbc.sql("""

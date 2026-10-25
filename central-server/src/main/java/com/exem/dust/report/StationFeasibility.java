@@ -30,6 +30,7 @@ public record StationFeasibility(
         int timeGaps,
         List<String> parserWarnings) {
 
+    /** 물질별 최댓값과 그 시각. */
     public record Peak(double value, LocalDateTime at) {
     }
 
@@ -40,15 +41,18 @@ public record StationFeasibility(
     public record RuleStats(int hoursMeetingRule, Streak longestStreak) {
     }
 
+    /** 기준 이상이 연속된 구간. 시작·종료 시각 포함. */
     public record Streak(LocalDateTime start, LocalDateTime end, int hours) {
 
         public static final Streak NONE = new Streak(null, null, 0);
 
+        /** 한 시간이라도 기준 이상이 있었는지. */
         public boolean exists() {
             return hours > 0;
         }
     }
 
+    /** alert_log에 남을 총 건수. 시뮬레이터 재생 후 DB 건수와 같아야 한다. */
     public int totalRecordedAlerts() {
         return recordedAlerts.values().stream().mapToInt(Integer::intValue).sum();
     }

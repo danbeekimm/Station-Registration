@@ -24,10 +24,12 @@ public class SessionRegistry {
         sessions.remove(stationId, handler);
     }
 
+    /** 인증된 활성 접속 수. 지표 게이지가 읽는다. */
     public int activeCount() {
         return sessions.size();
     }
 
+    /** 서버 종료 시 모든 접속을 닫는다. 측정소는 백오프 후 재접속한다. */
     void closeAll() {
         sessions.values().forEach(ConnectionHandler::closeQuietly);
         sessions.clear();

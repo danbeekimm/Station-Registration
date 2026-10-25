@@ -3,6 +3,7 @@ package com.exem.dust.simulator;
 /** 중앙 서버 주소. "host:port" 문자열에서 만든다. */
 record ServerEndpoint(String host, int port) {
 
+    /** "host:port"를 해석한다. 콜론이 여럿이면(IPv6) 마지막 콜론을 포트 구분자로 본다. */
     static ServerEndpoint parse(String value) {
         int separator = value.lastIndexOf(':');
         if (separator <= 0 || separator == value.length() - 1) {

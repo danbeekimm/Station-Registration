@@ -5,6 +5,7 @@ import java.time.Duration;
 /** Webhook 호출 결과. 디스패처가 상태 전이를 결정하는 입력이다. */
 public sealed interface SendOutcome {
 
+    /** 2xx 응답. */
     record Sent() implements SendOutcome {
     }
 

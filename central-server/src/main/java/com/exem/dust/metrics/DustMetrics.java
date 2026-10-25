@@ -21,6 +21,7 @@ public class DustMetrics {
 
     private final MeterRegistry registry;
 
+    /** 접속 수는 이벤트 없이 레지스트리를 직접 읽는 게이지로 둔다. */
     public DustMetrics(MeterRegistry registry, SessionRegistry sessions) {
         this.registry = registry;
         Gauge.builder("dust.connections.active", sessions, SessionRegistry::activeCount)
@@ -28,22 +29,26 @@ public class DustMetrics {
                 .register(registry);
     }
 
+    /** 저장까지 끝난 DATA 수. 거부된 건은 세지 않는다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onMeasurement(MeasurementStoredEvent event) {
         registry.counter("dust.messages.received", "station", event.measurement().stationId()).increment();
     }
 
+    /** 경보 발령 수. 측정소와 등급 태그로 나뉜다. */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAlert(AlertIssuedEvent event) {
         var alert = event.alert();
         registry.counter("dust.alerts.issued", "station", alert.stationId(), "grade", String.valueOf(alert.rule().grade())).increment();
     }
 
+    /** 인증·검증 거부 수. 트랜잭션 밖에서 발행되므로 일반 리스너다. */
     @EventListener
     public void onReject(ConnectionRejectedEvent event) {
         registry.counter("dust.messages.rejected", "reason", event.reason().name()).increment();
     }
 
+    /** Slack 전송 시도 결과(SENT, RETRY, RATE_LIMITED, FAILED). */
     @EventListener
     public void onSlackDelivery(SlackDeliveryEvent event) {
         registry.counter("dust.slack.deliveries", "status", event.status()).increment();

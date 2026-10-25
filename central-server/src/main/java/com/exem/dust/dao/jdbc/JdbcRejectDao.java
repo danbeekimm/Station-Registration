@@ -27,6 +27,7 @@ public class JdbcRejectDao implements RejectDao {
         this.jdbc = jdbc;
     }
 
+    /** 거부 1건 기록. 시각은 UTC로 넣고 TIMESTAMPTZ가 보존한다. */
     @Override
     public void insert(ConnectionReject reject) {
         jdbc.sql("""
@@ -41,6 +42,7 @@ public class JdbcRejectDao implements RejectDao {
                 .update();
     }
 
+    /** 최신순 거부 목록. */
     @Override
     public List<ConnectionReject> findRecent(int limit) {
         return jdbc.sql("""

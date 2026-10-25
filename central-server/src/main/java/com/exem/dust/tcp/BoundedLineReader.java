@@ -22,6 +22,7 @@ final class BoundedLineReader implements Closeable {
         this.maxBytes = maxBytes;
     }
 
+    /** 개행까지 읽는다. 상한을 넘으면 그 줄의 나머지를 버리고 TooLong, 스트림이 끝나면 EndOfStream. */
     LineRead readLine() throws IOException {
         var buffer = new ByteArrayOutputStream(256);
         boolean overflow = false;

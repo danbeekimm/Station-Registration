@@ -9,6 +9,7 @@ import java.time.Clock;
 @Configuration
 public class TimeConfig {
 
+    /** 시스템 시계. 테스트는 Clock.fixed로 바꿔 끼운다. */
     @Bean
     public Clock clock() {
         return Clock.systemDefaultZone();

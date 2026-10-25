@@ -41,6 +41,7 @@ public class TcpServer implements SmartLifecycle {
         this.sessions = sessions;
     }
 
+    /** 포트를 열고 accept 스레드를 띄운다. 포트를 못 열면 기동 자체를 실패시킨다. */
     @Override
     public void start() {
         try {
@@ -56,6 +57,7 @@ public class TcpServer implements SmartLifecycle {
         log.info("TCP 수신 시작: 포트 {}", boundPort());
     }
 
+    /** 접속을 받아 가상 스레드에 넘긴다. 접속 하나의 실패가 루프를 멈추지 않는다. */
     private void acceptLoop() {
         while (running) {
             Socket socket;
@@ -81,6 +83,7 @@ public class TcpServer implements SmartLifecycle {
         }
     }
 
+    /** 새 접속을 막고 기존 접속을 모두 닫는다. 다시 start()할 수 있는 상태로 돌아간다. */
     @Override
     public void stop() {
         running = false;
@@ -95,6 +98,7 @@ public class TcpServer implements SmartLifecycle {
         log.info("TCP 수신 종료");
     }
 
+    /** 종료 중 닫기 실패는 기록만 하고 넘어간다. */
     private static void closeQuietly(java.io.Closeable closeable) {
         if (closeable == null) {
             return;

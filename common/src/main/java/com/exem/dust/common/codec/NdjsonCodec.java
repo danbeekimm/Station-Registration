@@ -20,6 +20,7 @@ public final class NdjsonCodec {
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
 
+    /** 메시지 한 건을 개행 없는 JSON 한 줄로 만든다. 호출자가 개행을 붙여 보낸다. */
     public String encode(Message message) {
         return mapper.writeValueAsString(message);
     }

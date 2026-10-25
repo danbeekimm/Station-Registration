@@ -55,6 +55,7 @@ public class SlackDispatcher implements SmartLifecycle {
         this.events = events;
     }
 
+    /** 디스패처 스레드를 띄운다. URL이 없으면 경고만 남기고, autoDispatch가 꺼져 있으면(테스트) 스레드를 만들지 않는다. */
     @Override
     public void start() {
         if (!slack.isConfigured()) {
@@ -68,6 +69,7 @@ public class SlackDispatcher implements SmartLifecycle {
         log.info("Slack 디스패처 시작 ({})", slack);
     }
 
+    /** 보낼 게 있으면 1건 보내고 전송 간격만큼 쉰다. 없으면 깨움 신호나 1초를 기다린다. */
     private void loop() {
         while (running) {
             try {
@@ -115,6 +117,7 @@ public class SlackDispatcher implements SmartLifecycle {
         return true;
     }
 
+    /** 1건을 보내고 결과대로 행 상태를 바꾼 뒤 지표용 이벤트를 발행한다. */
     private void deliver(PendingAlert pending, Instant now) {
         var alert = pending.alert();
         var status = switch (client.send(slack.webhookUrl(), formatter.format(pending))) {
@@ -144,6 +147,7 @@ public class SlackDispatcher implements SmartLifecycle {
         events.publishEvent(new SlackDeliveryEvent(alert.stationId(), status));
     }
 
+    /** 장애 후 잠시 쉰다. 인터럽트는 플래그만 복원해 루프가 종료 조건을 보게 한다. */
     private static void sleepQuietly(Duration duration) {
         try {
             Thread.sleep(duration);
@@ -152,6 +156,7 @@ public class SlackDispatcher implements SmartLifecycle {
         }
     }
 
+    /** 스레드를 깨워 끝낸다. 처리 중이던 건의 상태는 DB에 있으므로 다음 기동이 이어받는다. */
     @Override
     public void stop() {
         running = false;

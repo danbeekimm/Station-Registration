@@ -42,6 +42,7 @@ public final class Station {
         return Optional.ofNullable(lastMeasuredAt);
     }
 
+    /** 측정값 1건을 반영해 이 시각의 발령과 점검 변화를 돌려준다. 호출할 때마다 내부 상태가 그 시각까지 전진한다. */
     public Evaluation accept(Measurement measurement) {
         if (!measurement.stationId().equals(id)) {
             throw new IllegalArgumentException("측정소 %s의 상태에 %s 측정값을 넣을 수 없습니다".formatted(id, measurement.stationId()));
@@ -58,6 +59,7 @@ public final class Station {
         return new Evaluation(alert, maintenanceChanges);
     }
 
+    /** 룰별 연속 카운터를 갱신한 뒤, 지속 시간을 채운 룰 중 가장 심각한 하나를 고른다. */
     private Optional<AlertIssued> evaluateAlert(Measurement measurement) {
         for (var rule : AlertRule.values()) {
             // null(점검)이나 기준 미달은 지속을 끊는다. 점검 직후 첫 측정이 기준을 넘어도 그 시각엔 1시간째다
@@ -74,6 +76,7 @@ public final class Station {
                         rule.pollutant().valueOf(measurement), streaks.get(rule)));
     }
 
+    /** 장비별로 점검 구간을 시작·연장·종료한다. 시각이 끊겼으면 이전 구간을 먼저 닫는다. */
     private List<MaintenanceChange> trackMaintenance(Measurement measurement, boolean continuous) {
         var changes = new ArrayList<MaintenanceChange>();
         for (var equipment : Equipment.values()) {

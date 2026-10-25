@@ -16,6 +16,7 @@ public final class TokenHasher {
     private TokenHasher() {
     }
 
+    /** SHA-256(stationId ':' token)의 소문자 16진수 64자. station.token_hash와 같은 형식이다. */
     public static String hash(String stationId, String token) {
         var digest = sha256();
         digest.update(stationId.getBytes(StandardCharsets.UTF_8));
@@ -31,6 +32,7 @@ public final class TokenHasher {
         return MessageDigest.isEqual(expected, presented);
     }
 
+    /** 호출마다 새 인스턴스. MessageDigest는 스레드 안전하지 않다. */
     private static MessageDigest sha256() {
         try {
             return MessageDigest.getInstance("SHA-256");

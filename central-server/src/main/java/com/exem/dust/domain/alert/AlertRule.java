@@ -38,6 +38,7 @@ public enum AlertRule {
         this.label = label;
     }
 
+    /** 기준 이상(≥)이면 충족. null(결측)은 미달로 본다. */
     public boolean isMetBy(Double concentration) {
         return concentration != null && concentration >= threshold;
     }

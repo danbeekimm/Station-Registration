@@ -23,6 +23,7 @@ public final class FeasibilityReport {
     private FeasibilityReport() {
     }
 
+    /** 인자가 없으면 data/*.json 전체를 분석한다. 파일 문제는 종료 코드 1. */
     public static void main(String[] args) {
         List<Path> files;
         try {
@@ -47,6 +48,7 @@ public final class FeasibilityReport {
         }
     }
 
+    /** 작업 디렉터리의 data/*.json을 파일 이름순으로. 디렉터리가 없으면 빈 목록. */
     private static List<Path> defaultDataFiles() throws IOException {
         var dataDir = Path.of("data");
         if (!Files.isDirectory(dataDir)) {

@@ -35,6 +35,7 @@ record SimulatorOptions(
     private static final Duration DEFAULT_INTERVAL = Duration.ofMillis(1000);
     private static final Duration DEFAULT_ACK_TIMEOUT = Duration.ofMillis(3000);
 
+    /** 명령행 인자를 해석한다. 잘못된 인자는 IllegalArgumentException으로 알려 호출자가 사용법을 출력하게 한다. */
     static SimulatorOptions parse(String[] args) {
         Path file = null;
         String stationCode = null;
@@ -96,6 +97,7 @@ record SimulatorOptions(
         return value != null && !value.isBlank();
     }
 
+    /** 1 이상의 정수만 허용한다. 간격·타임아웃이 0이면 루프가 의미를 잃는다. */
     private static long parsePositive(String key, String value) {
         try {
             long parsed = Long.parseLong(value);

@@ -28,6 +28,7 @@ public class SlackMessageFormatter {
         this.dashboardUrl = properties.slack().dashboardUrl();
     }
 
+    /** 경보 1건을 Block Kit payload JSON으로 만든다. text는 알림·미리보기용 평문이다. */
     public String format(PendingAlert pending) {
         var alert = pending.alert();
         var rule = alert.rule();
@@ -49,10 +50,12 @@ public class SlackMessageFormatter {
         return mapper.writeValueAsString(payload);
     }
 
+    /** 경보(1·2)는 사이렌, 주의보(3·4)는 경고, 오존(5)은 파란 원. */
     private static String emoji(int grade) {
         return grade <= 2 ? ":rotating_light:" : grade <= 4 ? ":warning:" : ":large_blue_circle:";
     }
 
+    /** 등급대별 색상 바. */
     private static String color(int grade) {
         return grade <= 2 ? RED : grade <= 4 ? ORANGE : BLUE;
     }

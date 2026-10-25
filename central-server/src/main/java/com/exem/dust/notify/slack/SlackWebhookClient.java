@@ -22,6 +22,7 @@ public class SlackWebhookClient {
         this.restClient = slackRestClient;
     }
 
+    /** payload를 POST하고 응답 상태를 분류한다. 예외도 Failed로 바꿔 디스패처가 상태 전이만 신경 쓰게 한다. */
     public SendOutcome send(String webhookUrl, String payloadJson) {
         try {
             return restClient.post()
@@ -45,6 +46,7 @@ public class SlackWebhookClient {
         }
     }
 
+    /** Retry-After 헤더(초). 없거나 숫자가 아니면 기본 5초, 0 이하는 1초로 올린다. */
     private static Duration parseRetryAfter(String header) {
         if (header == null) {
             return DEFAULT_RETRY_AFTER;
@@ -56,6 +58,7 @@ public class SlackWebhookClient {
         }
     }
 
+    /** 오류 본문 앞부분만 공백 정리해 한 줄로. slack_error 컬럼에 남는다. */
     private static String bodyPreview(java.io.InputStream body) {
         try {
             var text = new String(body.readNBytes(BODY_PREVIEW_LIMIT), StandardCharsets.UTF_8);

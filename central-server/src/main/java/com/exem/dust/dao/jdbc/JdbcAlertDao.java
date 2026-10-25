@@ -26,6 +26,7 @@ public class JdbcAlertDao implements AlertDao {
         this.jdbc = jdbc;
     }
 
+    /** UNIQUE 충돌이면 DO NOTHING으로 0행이 되어 false. 예외가 아닌 반환값으로 중복을 알린다. */
     @Override
     public boolean insertIfAbsent(AlertIssued alert) {
         // level과 pollutant는 사람이 읽는 용도. 등급↔룰 대응의 단일 출처는 AlertRule enum이다
@@ -45,6 +46,7 @@ public class JdbcAlertDao implements AlertDao {
         return inserted == 1;
     }
 
+    /** 발령 시각순 목록. 테스트와 리포트 비교에 쓴다. */
     @Override
     public List<AlertIssued> findByStationOrderedByTime(String stationId) {
         return jdbc.sql("""

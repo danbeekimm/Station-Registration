@@ -16,6 +16,7 @@ public class EventStreamController {
         this.broadcaster = broadcaster;
     }
 
+    /** 구독자를 등록하고 열린 응답을 돌려준다. 타임아웃이 없어 브라우저가 떠날 때까지 유지된다. */
     @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream() {
         return broadcaster.subscribe();

@@ -20,6 +20,7 @@ public record DustFile(Path source, Map<String, StationData> stations, List<Stri
         return stations.values().iterator().next();
     }
 
+    /** 지정한 코드의 측정소. 없으면 파일에 있는 코드 목록을 알려 주며 실패한다. */
     public StationData station(String stationCode) {
         var found = stations.get(stationCode);
         if (found == null) {

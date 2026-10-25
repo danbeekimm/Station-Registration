@@ -21,6 +21,7 @@ public enum RejectReason {
         this.closesConnection = closesConnection;
     }
 
+    /** 이 사유로 거부하면 서버가 소켓을 닫는다. 측정소는 재접속으로 대응한다. */
     public boolean closesConnection() {
         return closesConnection;
     }

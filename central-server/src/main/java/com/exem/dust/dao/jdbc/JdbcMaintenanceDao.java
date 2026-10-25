@@ -27,6 +27,7 @@ public class JdbcMaintenanceDao implements MaintenanceDao {
         this.jdbc = jdbc;
     }
 
+    /** 키가 같으면 ended_at·hours만 갱신한다. 시작·연장·종료가 모두 이 한 문장으로 끝난다. */
     @Override
     public void upsert(MaintenanceWindow window) {
         jdbc.sql("""
@@ -44,6 +45,7 @@ public class JdbcMaintenanceDao implements MaintenanceDao {
                 .update();
     }
 
+    /** 시작 시각순 점검 목록. 같은 시각이면 장비순. */
     @Override
     public List<MaintenanceWindow> findByStationOrderedByStart(String stationId) {
         return jdbc.sql("""

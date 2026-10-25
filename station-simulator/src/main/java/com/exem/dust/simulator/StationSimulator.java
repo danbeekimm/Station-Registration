@@ -13,10 +13,12 @@ public final class StationSimulator {
     private StationSimulator() {
     }
 
+    /** 실행 결과를 프로세스 종료 코드로 그대로 반영한다. run-stations.sh가 이 값으로 결과를 요약한다. */
     public static void main(String[] args) {
         System.exit(run(args).code());
     }
 
+    /** 인자 해석 → 파일 로드 → 토큰 확인 → 송신 루프 순으로 진행하고, 실패한 단계에 맞는 종료 코드를 돌려준다. */
     static ExitCode run(String[] args) {
         SimulatorOptions options;
         try {

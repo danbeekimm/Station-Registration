@@ -29,6 +29,7 @@ public record DustProperties(
             @DefaultValue("true") boolean autoDispatch,
             @DefaultValue("") String dashboardUrl) {
 
+        /** Webhook URL이 있어야 전송한다. 없으면 디스패처가 PENDING을 SKIPPED로 정리한다. */
         public boolean isConfigured() {
             return webhookUrl != null && !webhookUrl.isBlank();
         }
