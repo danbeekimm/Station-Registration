@@ -29,7 +29,7 @@
 | DB | PostgreSQL 18 (docker compose), 스키마는 `db/schema.sql` 제출 + 기동 시 자동 실행 |
 | 알림 | Slack Incoming Webhook, URL은 설정·환경변수·실행 인자로 지정 |
 | 대시보드·지표 | Thymeleaf 단일 페이지 + Server-Sent Events, Chart.js / Actuator health·prometheus |
-| 테스트 | JUnit 5, AssertJ, Testcontainers(PostgreSQL 18), MockRestServiceServer — 105건 |
+| 테스트 | JUnit 5, AssertJ, Testcontainers(PostgreSQL 18), MockRestServiceServer — 111건 |
 
 ---
 
@@ -362,6 +362,7 @@ Slack 앱 디렉터리에서 **Incoming Webhooks** 앱을 워크스페이스에 
 - `SlackDispatcher`(단일 가상 스레드)가 `slack_next_at`이 지난 가장 오래된 PENDING 1건을 `issued_at` 순으로 꺼내 보내고 결과를 같은 행에 적는다. 한 건 보내면 1초 쉬어 Incoming Webhook의 **초당 1건 제한**을 지킨다. 큐가 비면 1초 대기하되 경보가 커밋되면 이벤트로 즉시 깨어난다.
 - 상태 전이: 성공 → `SENT`(`slack_sent_at` 기록) / 5xx·타임아웃 → 1·2·4초 백오프 후 재시도, 3회 넘으면 `FAILED`(`slack_error`에 마지막 응답) / 429 → `Retry-After`만큼 미루고 횟수에 세지 않음 / URL 미설정 → `SKIPPED`.
 - Slack이 느리거나 죽어도 수신 → 판정 → 기록 경로는 영향을 받지 않는다. 디스패처 스레드만 기다린다.
+- 전송 보장은 **최소 1회**다. Webhook이 200을 돌려준 직후 `SENT`를 기록하기 전에 서버가 꺼지면 재기동 후 같은 경보가 한 번 더 갈 수 있다. 유실보다 중복을 택한 것이며, 메시지에 측정 시각이 있어 받는 쪽에서 구분된다.
 
 ### 전송 빈도에 대한 메모
 
@@ -428,7 +429,7 @@ Prometheus가 이 엔드포인트를 스크랩하면 Grafana 패널로 바로 �
 ## 11. 테스트
 
 ```bash
-./gradlew test                      # 세 모듈 전체. 105건
+./gradlew test                      # 세 모듈 전체. 111건
 ./gradlew :central-server:test      # 서버만
 ```
 
