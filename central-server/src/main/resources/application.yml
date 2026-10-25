@@ -16,6 +16,11 @@ dust:
     hello-timeout: 5s      # 접속 후 HELLO가 와야 하는 시간. 빈 연결 점유 방지
     read-timeout: 30s      # 인증 뒤 메시지 간 최대 공백. 1초 간격 전송이 30초 멈추면 비정상으로 본다
     max-line-bytes: 4096
+  validation:
+    max-dust-concentration: 2000   # ㎍/㎥. 국내 관측 기록을 넉넉히 넘는 상한. 센서 오작동·조작 값이 경보를 내지 못하게 함
+    max-ozone-ppm: 1.0
+    max-future-skew: 1d            # 측정 시각이 서버 시각 + 1일을 넘으면 거부
+    max-consecutive-out-of-order: 3  # seq 불연속이 연속 3회면 접속을 끊어 측정소가 재개 지점을 다시 받게 함
   # 기동 시 station 테이블에 upsert하는 초기 측정소. 토큰은 해시로만 저장된다.
   # 아래 기본 토큰은 개발·평가용으로 의도적으로 저장소에 포함했으며 run-stations.sh의 기본값과 같다.
   # 운영이라면 STATION_TOKEN_<코드> 환경변수로 덮어쓴다. 추가 측정소는 registerStation 태스크로 DB에 직접 등록한다.

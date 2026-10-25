@@ -45,6 +45,7 @@ final class ConnectionHandler implements Runnable {
     private final String remoteAddress;
     private final String remoteIp;
     private final DustProperties.Tcp tcp;
+    private final int maxConsecutiveOutOfOrder;
     private final NdjsonCodec codec;
     private final StationAuthService authService;
     private final StationStateLoader stateLoader;
@@ -57,14 +58,16 @@ final class ConnectionHandler implements Runnable {
     /** 인증 후 DB에서 복원한 판정 상태. 이 접속의 스레드만 갱신한다. */
     private Station state;
     private int lastSeenSeq;
+    private int consecutiveOutOfOrder;
 
-    ConnectionHandler(Socket socket, DustProperties.Tcp tcp, NdjsonCodec codec, StationAuthService authService,
+    ConnectionHandler(Socket socket, DustProperties properties, NdjsonCodec codec, StationAuthService authService,
                       StationStateLoader stateLoader, MessageValidator validator, IngestService ingestService,
                       RejectRecorder rejectRecorder, SessionRegistry sessions) {
         this.socket = socket;
         this.remoteAddress = socket.getRemoteSocketAddress().toString();
         this.remoteIp = socket.getInetAddress().getHostAddress();
-        this.tcp = tcp;
+        this.tcp = properties.tcp();
+        this.maxConsecutiveOutOfOrder = properties.validation().maxConsecutiveOutOfOrder();
         this.codec = codec;
         this.authService = authService;
         this.stateLoader = stateLoader;
@@ -195,19 +198,24 @@ final class ConnectionHandler implements Runnable {
     }
 
     private boolean handleData(Data data, MessageWriter writer, String rawText) throws IOException {
-        var violation = validator.validate(data, station.id());
+        var context = new MessageValidator.SessionContext(station.id(), lastSeenSeq, state.lastMeasuredAt());
+        var violation = validator.validate(data, context);
         if (violation.isPresent()) {
             var reject = violation.get();
             rejectAndLog(writer, reject.reason(), "seq=%d %s".formatted(data.seq(), reject.detail()), station.id(), rawText);
             if (reject.reason().closesConnection()) {
                 return false;
             }
-            if (data.seq() > lastSeenSeq) {
-                // 거부된 건의 순번은 소비한 것으로 본다. 측정소가 그 건을 건너뛰고 다음 건을 보낼 수 있게 한다
-                lastSeenSeq = data.seq();
+            if (reject.reason() == RejectReason.OUT_OF_ORDER) {
+                // 순서가 계속 어긋나면 측정소가 재접속해 재개 지점을 다시 받도록 접속을 끊는다
+                consecutiveOutOfOrder++;
+                return consecutiveOutOfOrder < maxConsecutiveOutOfOrder;
             }
+            // 거부된 건의 순번은 소비한 것으로 본다. 측정소가 그 건을 건너뛰고 다음 건을 보낼 수 있게 한다
+            lastSeenSeq = Math.max(lastSeenSeq, data.seq());
             return true;
         }
+        consecutiveOutOfOrder = 0;
 
         IngestResult result;
         try {

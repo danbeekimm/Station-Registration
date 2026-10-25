@@ -37,7 +37,7 @@ public class ConnectionHandlerFactory {
     }
 
     ConnectionHandler create(Socket socket) {
-        return new ConnectionHandler(socket, properties.tcp(), codec, authService, stateLoader, validator, ingestService,
+        return new ConnectionHandler(socket, properties, codec, authService, stateLoader, validator, ingestService,
                 rejectRecorder, sessions);
     }
 }
