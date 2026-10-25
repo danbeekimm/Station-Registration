@@ -37,16 +37,16 @@
 
 ### 사전 준비
 
-- Docker (PostgreSQL 컨테이너와 통합 테스트용). 자체 PostgreSQL을 쓰려면 아래 "자체 PostgreSQL 사용" 참고
+- Docker (PostgreSQL 컨테이너와 통합 테스트용).
 - JDK 17 이상 (Gradle 실행용). 컴파일·실행에 쓰는 **JDK 25는 Gradle 툴체인이 자동으로 내려받는다** (foojay resolver)
+- Windows에서는 **Git Bash**로 아래 스크립트를 실행한다. 스크립트가 콘솔을 UTF-8(코드 페이지 65001)로 바꿔 한글 출력이 깨지지 않게 하고, JDK 24 이상에서 Gradle이 먼저 찍는 네이티브 접근 WARNING도 끈다. `./gradlew`를 직접 쓸 때 한글이 깨지면 먼저 `chcp 65001`을 실행한다
 - Slack 알림을 보려면 Incoming Webhook URL (선택. 없어도 전체 흐름이 동작한다)
 
 ### 세 단계 실행
 
-```bash
-# 0. (선택) 포트가 겹치거나 Slack을 쓰려면 환경변수 파일을 만들어 값만 바꾼다. 없어도 기본값으로 실행된다
-cp .env.example .env
+포트가 겹치거나 Slack Webhook URL을 설정하려면 `.env` 파일에서 설정한다.
 
+```bash
 # 1. PostgreSQL 18 기동 — 최초 1회 db/init.sql이 롤 dust와 DB dust를 만든다 (.env의 DUST_DB_PORT를 읽는다)
 docker compose up -d
 
@@ -62,6 +62,7 @@ docker compose up -d
 시뮬레이터 터미널에는 `[111311 노원구] seq=17 2023-03-01T16 pm10=34.0 pm25=24.0 → ACK` 형태로 한 줄씩 찍히고,
 서버 로그에는 경보 발령·점검 시작/종료·Slack 전송 결과가 남는다.
 `run-stations.sh`는 은평구(111191)가 서버에 등록되지 않은 측정소라 **의도적으로 거부**되는 것까지 보여 준다(2절 "측정소 추가").
+시뮬레이터가 `[경고] 연결 문제: Connection refused`와 `N초 후 재접속`만 반복하면 **중앙 서버가 아직 9000 포트를 열지 않은 것**이다(2단계를 건너뛰었거나 기동 중). 서버 터미널에 `TCP 수신 시작: 포트 9000`이 찍힌 뒤 시뮬레이터를 띄운다. 시뮬레이터는 1·2·4·8·16·30초 간격으로 계속 재접속하므로 그대로 두어도 서버가 뜨는 순간 이어진다.
 
 ### 결과 확인
 
@@ -83,15 +84,6 @@ docker compose exec postgres psql -U dust -d dust -c \
 ```
 
 10ms로 한 번 재생하면 노원구 32건, 중구 35건, 강서구 39건의 경보와 각각 7·4·3건의 점검 구간이 남아야 한다. 이 숫자는 4절 발령 가능성 검토의 계산 결과와 같다.
-
-### 자체 PostgreSQL 사용
-
-```bash
-psql -U postgres -h <host> -f db/init.sql        # 롤 dust / DB dust 생성. 두 번 실행해도 안전
-DUST_DB_HOST=<host> DUST_DB_PORT=5432 ./run-server.sh
-```
-
-테이블은 서버가 기동 시 `db/schema.sql`로 만든다. 직접 만들려면 `psql -U dust -d dust -f db/schema.sql`을 실행해도 된다(`IF NOT EXISTS`만 사용).
 
 ### 데이터를 지우고 처음부터
 
