@@ -4,17 +4,20 @@ import com.exem.dust.common.protocol.Data;
 import com.exem.dust.dao.AlertDao;
 import com.exem.dust.dao.MaintenanceDao;
 import com.exem.dust.dao.MeasurementDao;
+import com.exem.dust.domain.event.AlertIssuedEvent;
 import com.exem.dust.domain.maintenance.MaintenanceChange;
 import com.exem.dust.domain.measurement.Measurement;
 import com.exem.dust.domain.station.Station;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 수신 1건 = 트랜잭션 1개. 측정값 저장과 판정 결과(경보·점검) 기록이 부분적으로만 남지 않게 한다.
  * 중복 수신이면 판정하지 않는다. 그 시각은 이미 상태에 반영되어 있기 때문이다.
+ * Slack 전송은 여기서 하지 않는다. 경보 이벤트만 발행하고 디스패처가 커밋 후 outbox(alert_log)를 읽는다.
  */
 @Service
 public class IngestService {
@@ -24,11 +27,14 @@ public class IngestService {
     private final MeasurementDao measurementDao;
     private final AlertDao alertDao;
     private final MaintenanceDao maintenanceDao;
+    private final ApplicationEventPublisher events;
 
-    public IngestService(MeasurementDao measurementDao, AlertDao alertDao, MaintenanceDao maintenanceDao) {
+    public IngestService(MeasurementDao measurementDao, AlertDao alertDao, MaintenanceDao maintenanceDao,
+                         ApplicationEventPublisher events) {
         this.measurementDao = measurementDao;
         this.alertDao = alertDao;
         this.maintenanceDao = maintenanceDao;
+        this.events = events;
     }
 
     /**
@@ -46,6 +52,7 @@ public class IngestService {
             if (alertDao.insertIfAbsent(alert)) {
                 log.info("[{}] 경보 발령 {} ({}등급) {} {}={} {}시간 지속", alert.stationId(), alert.rule().label(), alert.rule().grade(),
                         alert.issuedAt(), alert.rule().pollutant(), alert.triggerValue(), alert.sustainedHours());
+                events.publishEvent(new AlertIssuedEvent(alert));
             }
         });
         for (var change : evaluation.maintenanceChanges()) {

@@ -21,6 +21,15 @@ dust:
     max-ozone-ppm: 1.0
     max-future-skew: 1d            # 측정 시각이 서버 시각 + 1일을 넘으면 거부
     max-consecutive-out-of-order: 3  # seq 불연속이 연속 3회면 접속을 끊어 측정소가 재개 지점을 다시 받게 함
+  slack:
+    # Incoming Webhook URL. 우선순위: 이 값 < 환경변수 SLACK_WEBHOOK_URL < 실행 인자 --dust.slack.webhook-url=...
+    # 비어 있으면 전송을 건너뛰고 alert_log.slack_status를 SKIPPED로 기록한다.
+    webhook-url: ${SLACK_WEBHOOK_URL:}
+    connect-timeout: 3s
+    read-timeout: 5s
+    max-attempts: 3          # 5xx·타임아웃 재시도 횟수. 초과하면 FAILED. 429는 Retry-After만큼 미루고 횟수에 세지 않음
+    send-interval: 1s        # Incoming Webhook의 초당 1건 제한을 디스패처 주기로 지킴
+    dashboard-url: ${DUST_DASHBOARD_URL:}
   # 기동 시 station 테이블에 upsert하는 초기 측정소. 토큰은 해시로만 저장된다.
   # 아래 기본 토큰은 개발·평가용으로 의도적으로 저장소에 포함했으며 run-stations.sh의 기본값과 같다.
   # 운영이라면 STATION_TOKEN_<코드> 환경변수로 덮어쓴다. 추가 측정소는 registerStation 태스크로 DB에 직접 등록한다.

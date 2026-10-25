@@ -22,7 +22,7 @@ class MessageValidatorTest {
     private static final LocalDateTime LAST = LocalDateTime.of(2023, 3, 1, 5, 0);
 
     private final MessageValidator validator = new MessageValidator(
-            new DustProperties(null, new DustProperties.Validation(2000, 1.0, Duration.ofDays(1), 3), List.of()),
+            new DustProperties(null, new DustProperties.Validation(2000, 1.0, Duration.ofDays(1), 3), null, List.of()),
             Clock.fixed(NOW.toInstant(ZoneOffset.UTC), ZoneOffset.UTC));
 
     private final MessageValidator.SessionContext context =
