@@ -10,6 +10,7 @@ import com.exem.dust.domain.measurement.Pollutant;
 import com.exem.dust.domain.station.Station;
 import com.exem.dust.report.dto.ConcentrationPeak;
 import com.exem.dust.report.dto.RuleStats;
+import com.exem.dust.report.dto.StationFeasibility;
 import com.exem.dust.report.dto.ThresholdStreak;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;

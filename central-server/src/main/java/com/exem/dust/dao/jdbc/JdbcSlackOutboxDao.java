@@ -3,7 +3,7 @@ package com.exem.dust.dao.jdbc;
 import com.exem.dust.dao.SlackOutboxDao;
 import com.exem.dust.domain.alert.AlertIssued;
 import com.exem.dust.domain.alert.AlertRule;
-import com.exem.dust.domain.alert.PendingAlert;
+import com.exem.dust.notify.slack.dto.PendingAlert;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;

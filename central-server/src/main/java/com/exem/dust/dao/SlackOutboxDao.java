@@ -1,6 +1,6 @@
 package com.exem.dust.dao;
 
-import com.exem.dust.domain.alert.PendingAlert;
+import com.exem.dust.notify.slack.dto.PendingAlert;
 
 import java.time.Instant;
 import java.util.Optional;

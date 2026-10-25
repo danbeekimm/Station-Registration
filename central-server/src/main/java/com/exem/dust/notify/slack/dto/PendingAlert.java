@@ -1,4 +1,6 @@
-package com.exem.dust.domain.alert;
+package com.exem.dust.notify.slack.dto;
+
+import com.exem.dust.domain.alert.AlertIssued;
 
 /**
  * Slack 전송을 기다리는 alert_log 행. 측정소 이름은 메시지 본문용으로 함께 읽는다.

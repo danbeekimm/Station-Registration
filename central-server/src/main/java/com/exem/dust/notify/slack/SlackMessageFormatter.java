@@ -1,7 +1,7 @@
 package com.exem.dust.notify.slack;
 
 import com.exem.dust.config.DustProperties;
-import com.exem.dust.domain.alert.PendingAlert;
+import com.exem.dust.notify.slack.dto.PendingAlert;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.json.JsonMapper;
 

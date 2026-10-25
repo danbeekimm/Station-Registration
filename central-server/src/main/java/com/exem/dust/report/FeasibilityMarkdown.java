@@ -5,6 +5,7 @@ import com.exem.dust.domain.maintenance.Equipment;
 import com.exem.dust.domain.measurement.Pollutant;
 import com.exem.dust.report.dto.ConcentrationPeak;
 import com.exem.dust.report.dto.RuleStats;
+import com.exem.dust.report.dto.StationFeasibility;
 import com.exem.dust.report.dto.ThresholdStreak;
 
 import java.time.format.DateTimeFormatter;

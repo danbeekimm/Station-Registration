@@ -1,11 +1,9 @@
-package com.exem.dust.report;
+package com.exem.dust.report.dto;
 
 import com.exem.dust.domain.alert.AlertRule;
 import com.exem.dust.domain.maintenance.Equipment;
 import com.exem.dust.domain.maintenance.MaintenanceWindow;
 import com.exem.dust.domain.measurement.Pollutant;
-import com.exem.dust.report.dto.ConcentrationPeak;
-import com.exem.dust.report.dto.RuleStats;
 
 import java.util.List;
 import java.util.Map;

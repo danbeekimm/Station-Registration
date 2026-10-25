@@ -4,7 +4,7 @@ import com.exem.dust.config.DustProperties;
 import com.exem.dust.config.dto.SlackProperties;
 import com.exem.dust.domain.alert.AlertIssued;
 import com.exem.dust.domain.alert.AlertRule;
-import com.exem.dust.domain.alert.PendingAlert;
+import com.exem.dust.notify.slack.dto.PendingAlert;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
