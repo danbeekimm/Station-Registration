@@ -9,6 +9,12 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
+# Windows(Git Bash): 콘솔 코드 페이지가 949(CP949)면 JVM이 내보내는 UTF-8 한글이 깨지므로 UTF-8(65001)로 바꾼다.
+# 콘솔 설정이라 스크립트가 끝난 뒤에도 그 터미널에 유지된다. Linux·macOS에서는 아무것도 하지 않는다.
+if [ "${OS:-}" = "Windows_NT" ] && command -v chcp.com >/dev/null 2>&1; then chcp.com 65001 >/dev/null; fi
+# JDK 24 이상으로 Gradle을 실행하면 네이티브 접근 WARNING 4줄이 먼저 찍힌다. 동작과 무관하므로 끈다.
+export GRADLE_OPTS="--enable-native-access=ALL-UNNAMED${GRADLE_OPTS:+ $GRADLE_OPTS}"
+
 # .env 파일의 값은 이미 export된 환경변수보다 우선하지 않는다(쉘에서 준 값이 이긴다)
 if [ -f .env ]; then
   while IFS= read -r line; do

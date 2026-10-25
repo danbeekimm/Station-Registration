@@ -36,6 +36,12 @@ tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
 }
 
+// bootRun·feasibility·registerStation 등 JVM을 띄우는 태스크의 콘솔 출력을 UTF-8로 고정한다.
+// Gradle이 띄운 JVM의 stdout은 파이프라 Windows에서는 기본값이 CP949가 되어 한글 로그가 깨진다.
+tasks.withType<JavaExec>().configureEach {
+    jvmArgs("-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
+}
+
 // 제출용 db/schema.sql·seed.sql을 그대로 클래스패스(db/)에 넣어 서버가 기동 시 같은 파일을 실행한다.
 tasks.processResources {
     from(rootProject.file("db")) {

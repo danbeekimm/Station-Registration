@@ -12,7 +12,7 @@ java {
 application {
     mainClass = "com.exem.dust.simulator.StationSimulator"
     applicationName = "station-simulator"
-    applicationDefaultJvmArgs = listOf("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+    applicationDefaultJvmArgs = listOf("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8")
 }
 
 dependencies {
