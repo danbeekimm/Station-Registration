@@ -183,3 +183,17 @@ dustwatch/
 달리 지시가 없으면 추천안대로 진행한다.
 
 확정된 결정: DB 초기화 방식은 2026-10-25에 3절 L대로 확정했다(롤·DB는 init.sql 1회, 테이블은 앱이 schema.sql 기동마다 실행, 앱 내 롤·DB 생성 없음).
+
+---
+
+## 8. 진행 결과 (2026-10-25)
+
+- Phase 1·2·3의 커밋 1~15가 모두 끝났다. Grafana 프로비저닝(계획 16번)은 평가자 부담을 고려해 범위에서 제외하고 README 제한 사항에 적었다. Actuator(15번)는 포함했다.
+- 종단 검증(6절) 결과: 3개 측정소 10ms 재생 후 alert_log 32/35/39건, maintenance_log 7/4/3건으로 1.2 표와 일치. 은평구 등록 데모(거부 → registerStation → 재실행 → 33건), 재접속 재개, 로컬 가짜 Webhook으로 32건 1건/초 순차 전송, 서버 재기동 후 데이터 유지와 PENDING 이어서 전송을 모두 확인했다.
+- 구현 중 추가로 결정·발견한 것:
+  - HELLO 토큰 인증은 수신 경로와 분리할 수 없어 5번 커밋에 포함했고, 9번 커밋은 거부 기록과 registerStation으로 범위를 조정했다.
+  - Spring Framework 7의 테스트 컨텍스트는 쓰지 않는 캐시 컨텍스트의 Lifecycle 빈을 stop()하고 다시 start()한다. TcpServer와 SlackDispatcher는 start()마다 소켓·executor·스레드를 새로 만들어 재시작 가능하게 했다.
+  - PgJDBC는 NUMERIC을 Double로 직접 변환하지 않아 BigDecimal을 거친다. SMALLINT는 Integer로 돌려준다.
+  - Thymeleaf 표현식에서 `eq`는 비교 연산자 예약어라 반복 변수 이름으로 쓸 수 없다.
+  - 조건식 `${cond} ? a : (b)`의 else 분기는 `${}` 밖이면 리터럴로 처리된다. 전체를 `${cond ? a : b}`로 감싸야 한다.
+  - Gradle 사용자 정의 JavaExec 태스크는 `--args`를 받지 않는다. registerStation은 `@Option` 태스크 클래스로 `--code --name --token`을 받는다.

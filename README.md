@@ -28,7 +28,8 @@
 | 통신 | `java.net.ServerSocket` / `Socket` 직접 사용, 개행 구분 JSON(NDJSON) |
 | DB | PostgreSQL 18 (docker compose), 스키마는 `db/schema.sql` 제출 + 기동 시 자동 실행 |
 | 알림 | Slack Incoming Webhook, URL은 설정·환경변수·실행 인자로 지정 |
-| 테스트 | JUnit 5, AssertJ, Testcontainers(PostgreSQL 18), MockRestServiceServer — 94건 |
+| 대시보드·지표 | Thymeleaf 단일 페이지 + Server-Sent Events, Chart.js / Actuator health·prometheus |
+| 테스트 | JUnit 5, AssertJ, Testcontainers(PostgreSQL 18), MockRestServiceServer — 98건 |
 
 ---
 
@@ -60,6 +61,9 @@ docker compose up -d
 `run-stations.sh`는 은평구(111191)가 서버에 등록되지 않은 측정소라 **의도적으로 거부**되는 것까지 보여 준다(5절).
 
 ### 결과 확인
+
+브라우저로 **http://localhost:8080** 을 열면 측정소 카드(최신 농도·경보 등급·점검 중 장비·차트)와 경보·점검 피드가 1초마다 갱신된다(9절).
+서버 상태는 `curl localhost:8080/actuator/health`로 본다.
 
 ```bash
 # 측정소별 경보 건수(등급별)
@@ -102,6 +106,8 @@ docker compose down -v && docker compose up -d     # 볼륨까지 삭제. 재기
 |---|---|---|---|
 | `dust.slack.webhook-url` | (비어 있음) | `SLACK_WEBHOOK_URL` | 비어 있으면 전송을 건너뛰고 `slack_status=SKIPPED`로 기록 |
 | `dust.tcp.port` | 9000 | `DUST_TCP_PORT` | 측정소 수신 포트 |
+| `server.port` | 8080 | `DUST_HTTP_PORT` | 대시보드·SSE·Actuator |
+| `dust.slack.dashboard-url` | `http://localhost:8080` | `DUST_DASHBOARD_URL` | Slack 메시지의 대시보드 링크. 비우면 생략 |
 | `spring.datasource.url` 등 | compose의 `dust/dust@localhost:5432/dust` | `DUST_DB_URL`, `DUST_DB_USER`, `DUST_DB_PASSWORD` | |
 | `dust.stations[*].token` | 개발용 토큰 | `STATION_TOKEN_<측정소코드>` | 기동 시 해시해 `station`에 저장 |
 | `dust.validation.*` | 농도 0~2000, 오존 0~1ppm, 미래 1일, 순서 오류 3회 | | DATA 검증 한계 |
@@ -352,7 +358,7 @@ Slack 앱 디렉터리에서 **Incoming Webhooks** 앱을 워크스페이스에 
 
 경보 기록 1건마다 1통을 보낸다(묶음 전송 없음). 1시간을 1초로 축소했기 때문에 측정소 세 곳이 동시에 경보 상태면 초당 3건이 생기고 전송은 초당 1건이라
 경보가 이어지는 동안 PENDING이 쌓였다가 순차 처리된다. 유실은 없고 지연만 생기며, 이 지연은 시뮬레이션의 산물이다(실제 운영에서는 측정소당 시간당 1통).
-10ms 재생처럼 극단적으로 빠르면 139건이 약 2분 20초에 걸쳐 전송된다.
+10ms 재생처럼 극단적으로 빠르면 세 측정소의 경보 106건이 약 1분 46초에 걸쳐 전송된다.
 
 ### 메시지 형식
 
@@ -365,7 +371,34 @@ Block Kit attachment로 경보(1·2등급)는 빨간 바와 `:rotating_light:`, 
 
 ---
 
-## 9. 데이터베이스
+## 9. 대시보드와 서버 지표
+
+### 대시보드 (GET /)
+
+- 측정소 카드는 `station` 테이블 행 수만큼 생성된다. 아직 접속하지 않은 측정소도 빈 카드로 보이고, 기동 후 `registerStation`으로 등록해 접속한 측정소는 첫 측정값이 오는 순간 JS가 카드를 추가한다.
+- 카드에는 최신 PM10·PM2.5, 측정 시각, 마지막 발령 등급 배지, 점검 중 장비 태그, 최근 48시간 차트(기준선 75·150·300)가 있다. 점검 시각은 선이 끊겨 보인다.
+- 아래에는 최근 경보 30건(Slack 전송 상태 포함), 점검 내역 20건, 거부 사유별 누적이 있다.
+- 최초 렌더링만 DB에서 읽고 이후에는 **GET /stream**(Server-Sent Events)으로 `measurement` · `alert` · `maintenance` 이벤트를 받아 갱신한다. 이벤트는 수신 트랜잭션이 커밋된 뒤에만 발행되므로 화면의 값은 항상 DB에 있는 값이다. 연결이 끊기면 브라우저 `EventSource`가 스스로 재접속한다.
+- URL 해시 `#111311`처럼 측정소 코드를 붙이면 그 카드로 스크롤된다. Slack 메시지의 링크가 이 형식이다.
+- 차트 라이브러리(Chart.js)는 CDN에서 받는다. 오프라인 환경이면 차트만 비고 나머지는 동작한다.
+
+### 서버 지표 (Actuator)
+
+`GET /actuator/health`와 `GET /actuator/prometheus`만 열어 두었다. 도메인 이벤트를 구독하는 `DustMetrics`가 다음 지표를 만든다.
+
+| 지표 | 종류 | 태그 | 의미 |
+|---|---|---|---|
+| `dust_connections_active` | gauge | — | 인증된 측정소 접속 수 |
+| `dust_messages_received_total` | counter | station | 저장까지 끝난 DATA 수 |
+| `dust_messages_rejected_total` | counter | reason | 인증·검증 거부 수 |
+| `dust_alerts_issued_total` | counter | station, grade | 경보 발령 수 |
+| `dust_slack_deliveries_total` | counter | status | Slack 전송 결과(SENT, RETRY, RATE_LIMITED, FAILED) |
+
+Prometheus가 이 엔드포인트를 스크랩하면 Grafana 패널로 바로 이어질 수 있다. 과제 범위에서는 외부 모니터링 스택 없이 `curl`로 확인 가능한 선까지만 두었다.
+
+---
+
+## 10. 데이터베이스
 
 | 테이블 | 역할 | 핵심 제약 |
 |---|---|---|
@@ -382,10 +415,10 @@ Block Kit attachment로 경보(1·2등급)는 빨간 바와 `:rotating_light:`, 
 
 ---
 
-## 10. 테스트
+## 11. 테스트
 
 ```bash
-./gradlew test                      # 세 모듈 전체. 94건
+./gradlew test                      # 세 모듈 전체. 98건
 ./gradlew :central-server:test      # 서버만
 ```
 
@@ -395,13 +428,14 @@ Block Kit attachment로 경보(1·2등급)는 빨간 바와 `:rotating_light:`, 
 | 통합(DB) | Testcontainers PostgreSQL 18 | DAO 5개, UNIQUE 충돌 처리, 스키마 초기화 재실행 |
 | 통합(소켓) | 실제 `ServerSocket` + 테스트 클라이언트 | 인증 실패 3종, HELLO 전 DATA, 소유권, 순서·시각·범위 검증, 세션 교체, 재접속 복원, 거부 기록 |
 | 외부 | MockRestServiceServer, Mockito | Webhook 응답 변환(200·429·500·연결 실패), outbox 상태 전이(재시도·FAILED·429·재기동 이어서 전송) |
+| 웹 | 실제 HTTP 포트 + JDK HttpClient | 대시보드 렌더링, SSE로 measurement·maintenance·alert 수신, Actuator health·prometheus 노출 |
 | 종단 | 시뮬레이터 4개 + 서버 (수동) | 10ms 재생 후 `alert_log`·`maintenance_log` 건수 = 발령 가능성 검토 표 |
 
 Docker가 없는 환경에서는 Testcontainers 기반 테스트가 **자동으로 건너뛰어** 단위 테스트만으로 `./gradlew test`가 통과한다.
 
 ---
 
-## 11. 설계 결정
+## 12. 설계 결정
 
 | 쟁점 | 결정 | 이유 |
 |---|---|---|
@@ -424,7 +458,7 @@ Docker가 없는 환경에서는 Testcontainers 기반 테스트가 **자동으�
 
 ---
 
-## 12. 프로젝트 구조
+## 13. 프로젝트 구조
 
 ```
 dustwatch/
@@ -437,6 +471,8 @@ dustwatch/
 │     ├ dao/         DAO 인터페이스 5개 + jdbc/ 구현(JdbcClient), SchemaInitializer
 │     ├ tcp/         TcpServer, ConnectionHandler(세션 상태 기계), BoundedLineReader, SessionRegistry
 │     ├ notify/slack/ SlackDispatcher(outbox), SlackWebhookClient, SlackMessageFormatter
+│     ├ web/         DashboardController(GET /), EventStreamController(GET /stream), SseBroadcaster, 화면 DTO
+│     ├ metrics/     DustMetrics(이벤트 → Micrometer)
 │     ├ report/      FeasibilityReport(발령 가능성 검토)
 │     ├ admin/       RegisterStationCommand
 │     └ config/      DustProperties(dust.*), SlackConfig, TimeConfig
@@ -448,11 +484,12 @@ dustwatch/
 └ docs/DEVELOPMENT_PLAN.md  개발 계획과 설계 검토 기록
 ```
 
-의존 방향은 `domain ← service ← dao.jdbc / tcp / notify` 한 방향이고, `domain`에는 Spring import가 없다.
+의존 방향은 `domain ← service ← dao.jdbc / tcp / notify / web / metrics` 한 방향이고, `domain`에는 Spring import가 없다.
+서비스는 도메인 이벤트를 발행만 하고 Slack 디스패처·SSE·지표가 각자 구독한다.
 
 ---
 
-## 13. 제한 사항과 운영이라면 달라질 점
+## 14. 제한 사항과 운영이라면 달라질 점
 
 - **Slack 묶음 전송 없음.** 요구사항대로 경보 1건 = 1통이다. 운영에서 측정소가 수십 곳이면 시각 단위 요약 메시지나 채널 분리가 필요하다.
 - **블로킹 I/O + 가상 스레드.** 측정소 수천 곳이면 NIO나 Netty를 고려하겠지만, 이 과제는 소켓 프로그래밍이 코드에 드러나는 쪽을 택했다.
@@ -461,3 +498,5 @@ dustwatch/
 - **상태 복원은 전체 재생.** 데이터가 수년치로 늘면 최근 N시간만 재생하고 카운터를 스냅숏으로 저장하는 방식으로 바꾼다.
 - **스키마 변경.** `IF NOT EXISTS`만으로는 기존 테이블의 컬럼 변경을 반영하지 못한다. 운영이라면 Flyway 같은 마이그레이션 도구로 버전을 관리한다.
 - **개발용 토큰 포함.** 평가 편의를 위한 것이며 운영 저장소에는 두지 않는다.
+- **외부 모니터링 스택 미포함.** Grafana·Prometheus 프로비저닝은 평가자가 과제 핵심 실행에 추가 구성을 요구받지 않도록 범위에서 뺐다. `/actuator/prometheus`를 스크랩하면 바로 연결된다.
+- **대시보드 인증 없음.** 로컬 확인용이다. 운영이라면 인증을 붙이거나 내부망으로 제한한다.
