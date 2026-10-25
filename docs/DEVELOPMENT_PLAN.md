@@ -100,7 +100,7 @@ dustwatch/
 ├ common/  station-simulator/  central-server/
 ├ data/            노원구.json  중구.json  강서구.json  은평구.json
 ├ db/              init.sql(ROLE·DB, compose initdb·psql 공용, 최초 1회)  schema.sql(테이블, 앱이 기동마다 실행)
-├ central-server/  makeMockStation 태스크(은평구 가상 데이터 생성기)
+├ central-server/  tools 패키지: MockStationGenerator(makeMockStation 태스크, 은평구 가상 데이터 생성기)
 ├ docker-compose.yml   (postgres:18-alpine, profile grafana는 선택)
 ├ run-stations.sh
 ├ docs/DEVELOPMENT_PLAN.md
@@ -197,3 +197,4 @@ dustwatch/
   - Thymeleaf 표현식에서 `eq`는 비교 연산자 예약어라 반복 변수 이름으로 쓸 수 없다.
   - 조건식 `${cond} ? a : (b)`의 else 분기는 `${}` 밖이면 리터럴로 처리된다. 전체를 `${cond ? a : b}`로 감싸야 한다.
   - Gradle 사용자 정의 JavaExec 태스크는 `--args`를 받지 않는다. registerStation은 `@Option` 태스크 클래스로 `--code --name --token`을 받는다.
+  - 은평구 가상 데이터 생성기는 central-server `tools` 패키지의 `makeMockStation` 태스크다. 고정 시드 MT19937(참조 구현의 init_by_array·res53)을 써서 어떤 환경에서도 `data/은평구.json`이 바이트 단위로 같게 재생성되고, 이를 테스트로 고정했다.

@@ -84,3 +84,40 @@ tasks.register<JavaExec>("feasibility") {
     mainClass = "com.exem.dust.report.FeasibilityReport"
     workingDir = rootProject.projectDir
 }
+
+// 미등록 측정소 데모용 가상 데이터 생성. 제공 파일들의 시간별 평균에 ±10% 잡음을 섞어 같은 형식으로 쓴다.
+//   ./gradlew makeMockStation --code=111191 --name=은평구
+abstract class MakeMockStationTask : JavaExec() {
+    @get:Input
+    @get:Option(option = "code", description = "생성할 측정소 코드")
+    abstract val code: Property<String>
+
+    @get:Input
+    @get:Option(option = "name", description = "생성할 측정소 이름")
+    abstract val stationName: Property<String>
+
+    @get:Input
+    @get:Optional
+    @get:Option(option = "out", description = "출력 파일 (기본 data/<이름>.json)")
+    abstract val out: Property<String>
+
+    @get:Input
+    @get:Optional
+    @get:Option(option = "sources", description = "원본 파일 목록, 쉼표 구분 (기본 data/노원구.json,data/중구.json,data/강서구.json)")
+    abstract val sources: Property<String>
+
+    override fun exec() {
+        args("--code=${code.get()}", "--name=${stationName.get()}")
+        if (out.isPresent) args("--out=${out.get()}")
+        if (sources.isPresent) args("--sources=${sources.get()}")
+        super.exec()
+    }
+}
+
+tasks.register<MakeMockStationTask>("makeMockStation") {
+    group = "dustwatch"
+    description = "가상 측정소 데이터 파일을 생성한다 (--code, --name, [--out], [--sources])"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "com.exem.dust.tools.MockStationGenerator"
+    workingDir = rootProject.projectDir
+}

@@ -29,7 +29,7 @@
 | DB | PostgreSQL 18 (docker compose), 스키마는 `db/schema.sql` 제출 + 기동 시 자동 실행 |
 | 알림 | Slack Incoming Webhook, URL은 설정·환경변수·실행 인자로 지정 |
 | 대시보드·지표 | Thymeleaf 단일 페이지 + Server-Sent Events, Chart.js / Actuator health·prometheus |
-| 테스트 | JUnit 5, AssertJ, Testcontainers(PostgreSQL 18), MockRestServiceServer — 98건 |
+| 테스트 | JUnit 5, AssertJ, Testcontainers(PostgreSQL 18), MockRestServiceServer — 105건 |
 
 ---
 
@@ -300,7 +300,8 @@ HELLO 인증 직후 그 측정소의 저장된 측정값 전체(최대 744행)�
 
 ### 측정소 추가: 서버 코드 수정도 재기동도 없이
 
-`data/은평구.json`은 이 절차를 보여 주기 위해 만든 **가상 데이터**다(세 측정소 시간별 평균에 ±10% 잡음, `./gradlew makeMockStation`으로 재현 가능. 코드 111191은 가상).
+`data/은평구.json`은 이 절차를 보여 주기 위해 만든 **가상 데이터**다(세 측정소 시간별 평균에 ±10% 잡음, 점검 구간 2개. 코드 111191은 가상).
+`./gradlew makeMockStation --code=111191 --name=은평구`로 다시 만들 수 있고, 시드가 고정된 MT19937을 쓰므로 커밋된 파일과 바이트 단위로 같은 결과가 나온다(테스트로 고정).
 서버 시드에 은평구가 없으므로 처음 실행하면 거부되고, 등록 후 다시 실행하면 수신된다.
 
 ```bash
@@ -418,13 +419,13 @@ Prometheus가 이 엔드포인트를 스크랩하면 Grafana 패널로 바로 �
 ## 11. 테스트
 
 ```bash
-./gradlew test                      # 세 모듈 전체. 98건
+./gradlew test                      # 세 모듈 전체. 105건
 ./gradlew :central-server:test      # 서버만
 ```
 
 | 계층 | 도구 | 대상 |
 |---|---|---|
-| 단위 | JUnit 5, AssertJ | 데이터 파서(결측 4종, 24시, 중복), NDJSON 코덱, `Station.accept()` 경보·점검 판정 18건, 메시지 검증, Slack 포매터, 시뮬레이터 인자·스케줄·백오프 |
+| 단위 | JUnit 5, AssertJ | 데이터 파서(결측 4종, 24시, 중복), NDJSON 코덱, `Station.accept()` 경보·점검 판정 18건, 메시지 검증, Slack 포매터, 시뮬레이터 인자·스케줄·백오프, 가상 데이터 생성기(커밋된 파일과 바이트 일치) |
 | 통합(DB) | Testcontainers PostgreSQL 18 | DAO 5개, UNIQUE 충돌 처리, 스키마 초기화 재실행 |
 | 통합(소켓) | 실제 `ServerSocket` + 테스트 클라이언트 | 인증 실패 3종, HELLO 전 DATA, 소유권, 순서·시각·범위 검증, 세션 교체, 재접속 복원, 거부 기록 |
 | 외부 | MockRestServiceServer, Mockito | Webhook 응답 변환(200·429·500·연결 실패), outbox 상태 전이(재시도·FAILED·429·재기동 이어서 전송) |
@@ -474,11 +475,11 @@ dustwatch/
 │     ├ web/         DashboardController(GET /), EventStreamController(GET /stream), SseBroadcaster, 화면 DTO
 │     ├ metrics/     DustMetrics(이벤트 → Micrometer)
 │     ├ report/      FeasibilityReport(발령 가능성 검토)
+│     ├ tools/       MockStationGenerator(은평구 가상 데이터 생성기, makeMockStation 태스크), Mt19937
 │     ├ admin/       RegisterStationCommand
 │     └ config/      DustProperties(dust.*), SlackConfig, TimeConfig
 ├ data/              노원구·중구·강서구(제공), 은평구(가상)
 ├ db/                init.sql(롤·DB), schema.sql(테이블)
-├ central-server/    makeMockStation 태스크(은평구 가상 데이터 생성기)
 ├ docker-compose.yml postgres:18-alpine
 ├ run-stations.sh    측정소 일괄 기동
 └ docs/DEVELOPMENT_PLAN.md  개발 계획과 설계 검토 기록
